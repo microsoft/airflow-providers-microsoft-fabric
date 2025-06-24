@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "apache-airflow-providers-microsoft-fabric"
+version = "1.0.3"
+authors = [
+  { name="Vinicius Fontes", email="vfontes@microsot.com" },
+]
+description = "A plugin for Apache Airflow to interact with Microsoft Fabric items"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Plugins",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+[project.urls]
+Homepage = "https://github.com/microsoft/apache-airflow-microsoft-fabric-plugin.git"
+
+[project.entry-points."apache_airflow_provider"]
+provider_info = "airflow.providers.microsoft.fabric.get_provider_info:get_provider_info"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["airflow.providers.*"]
+namespaces = true

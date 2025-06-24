@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from unittest import mock
 from unittest.mock import MagicMock, patch
 
@@ -35,6 +36,8 @@ def setup_connections(create_mock_connection):
             password="userRefreshToken",
             extra={
                 "tenantId": "tenantId",
+                "clientId": "clientId",
+                "clientSecret": "clientSecret",
             },
         )
     )
@@ -171,9 +174,14 @@ def fabric_async_hook():
     return client
 
 @pytest.mark.asyncio
-@mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
-async def test_async_get_headers(mock_get_token, fabric_async_hook):
-    headers = await fabric_async_hook.get_headers()
+async def test_async_get_headers(fabric_async_hook, mocker):
+    # Set up cached token to avoid HTTP requests
+    fabric_async_hook.cached_access_token = {
+        "access_token": "access_token",
+        "expiry_time": time.time() + 3600  # 1 hour from now
+    }
+    
+    headers = await fabric_async_hook.async_get_headers()
     assert isinstance(headers, dict)
     assert "Authorization" in headers
     assert headers["Authorization"] == "Bearer access_token"
@@ -181,30 +189,36 @@ async def test_async_get_headers(mock_get_token, fabric_async_hook):
 
 @pytest.mark.asyncio
 @mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
-async def test_async_get_item_run_details_success(get_token, fabric_async_hook, mocker):
-    # Mock response for successful response from _send_request
-    response = MagicMock()
-    response.ok = True
-    response.json.return_value = {"status": "Completed"}
+async def test_async_get_item_run_details_success(mock_get_token, fabric_async_hook, mocker):
+    # Mock response for successful response from _async_send_request
+    expected_response = {"status": "Completed"}
 
-    mocker.patch.object(fabric_async_hook, "get_headers", return_value={"Authorization": f"Bearer {get_token.return_value}"})
-    mocker.patch.object(fabric_async_hook, "_send_request", return_value=response.json.return_value)
+    mocker.patch.object(fabric_async_hook, "async_get_headers", return_value={"Authorization": "Bearer access_token"})
+    mocker.patch.object(fabric_async_hook, "_async_send_request", return_value=expected_response)
 
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances/{ITEM_RUN_ID}"
-    result = await fabric_async_hook.get_item_run_details(workspace_id=WORKSPACE_ID, item_id=ITEM_ID, item_run_id=ITEM_RUN_ID)
+    result = await fabric_async_hook.async_get_item_run_details(workspace_id=WORKSPACE_ID, item_id=ITEM_ID, item_run_id=ITEM_RUN_ID)
 
     assert result == {"status": "Completed"}
-    fabric_async_hook.get_headers.assert_called_once()
-    fabric_async_hook._send_request.assert_called_once_with(
+    fabric_async_hook.async_get_headers.assert_called_once()
+    fabric_async_hook._async_send_request.assert_called_once_with(
         "GET", expected_url, headers={"Authorization": "Bearer access_token"}
     )
 
 @pytest.mark.asyncio
-@patch(f"{MODULE}.FabricAsyncHook._send_request")
-@mock.patch(f"{MODULE}.FabricAsyncHook._get_token", return_value="access_token")
-async def test_async_cancel_item_run(get_token, mock_send_request, fabric_async_hook):
+async def test_async_cancel_item_run(fabric_async_hook, mocker):
+    # Mock the async methods properly
+    mock_headers = {"Authorization": "Bearer access_token"}
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    
+    mocker.patch.object(fabric_async_hook, 'async_get_headers', return_value=mock_headers)
+    mocker.patch.object(fabric_async_hook, '_async_send_request', return_value=mock_response)
+    
     await fabric_async_hook.cancel_item_run(WORKSPACE_ID, ITEM_ID, ITEM_RUN_ID)
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances/{ITEM_RUN_ID}/cancel"
-    mock_send_request.assert_called_once_with(
-        "POST", expected_url, headers={"Authorization": "Bearer access_token"}
+    
+    fabric_async_hook.async_get_headers.assert_called_once()
+    fabric_async_hook._async_send_request.assert_called_once_with(
+        "POST", expected_url, headers=mock_headers
     )

@@ -159,7 +159,7 @@ class FabricHook(BaseHook):
             "expiry_time": time.time() + response_data.get("expires_in"),
         }
 
-        self.log.info(f"Created authentication token for Fabric. Token: '{api_access_token[5]}...', Expiry: '{time.time() + response_data.get("expires_in")}'")
+        self.log.info(f"Created authentication token for Fabric. Token: '{api_access_token[:5]}...', Expiry: '{time.time() + response_data.get('expires_in')}'")
 
 
         return api_access_token
@@ -237,7 +237,7 @@ class FabricHook(BaseHook):
         self.log.info(f"Submitting run item request: URL: '{url}', Request Payload: '{data}'")
         response = self._send_request("POST", url, headers=headers, json=data)
         location_header = response.headers.get("Location", None)
-        self.log.info(f"Fabric response: Status: '{response.status_code}', Location header: '{location_header}', Request Id: '{response.headers.get("RequestId")}', Response Content: '{response.content.decode()}'")
+        self.log.info(f"Fabric response: Status: '{response.status_code}', Location header: '{location_header}', Request Id: '{response.headers.get('RequestId')}', Response Content: '{response.content.decode()}'")
 
         response.raise_for_status()
 

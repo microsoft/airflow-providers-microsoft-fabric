@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "apache-airflow-providers-microsoft-fabric"
-version = "0.0.1"
+version = "0.0.2"
 authors = [
   { name="Vinicius Fontes", email="vfontes@microsot.com" },
 ]

@@ -29,7 +29,6 @@ from airflow.providers.microsoft.fabric.hooks.fabric import (
     FabricRunItemStatus,
 )
 from airflow.providers.microsoft.fabric.triggers.fabric import FabricTrigger
-from airflow.utils.decorators import apply_defaults
 
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey
@@ -86,7 +85,6 @@ class FabricRunItemOperator(BaseOperator):
 
     operator_extra_links = (FabricRunItemLink(),)
 
-    @apply_defaults
     def __init__(
         self,
         *,

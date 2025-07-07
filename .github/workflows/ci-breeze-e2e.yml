@@ -36,9 +36,7 @@ jobs:
           -e AIRFLOW_HOME=/home/airflow \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
-            docker exec airflow_ci mkdir -p /tmp/provider
-        tar -cf - -C provider_clean . | docker exec -i airflow_ci tar -xf - -C /tmp/provider
-
+            
     - name: Build provider wheel locally
       run: |
         pip install build

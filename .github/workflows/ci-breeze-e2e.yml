@@ -4,7 +4,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: ["**"]
+    branches: [main]
   schedule:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
@@ -26,9 +26,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Pull Airflow image
+    - name: Pull Airflow production image from Docker Hub
       run: |
-        docker pull ghcr.io/apache/airflow/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
+        docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
 
     - name: Start Airflow container with your provider
       run: |
@@ -36,7 +36,7 @@ jobs:
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
           -v ${{ github.workspace }}:/opt/airflow/provider \
-          ghcr.io/apache/airflow/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
+          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
     - name: Install your provider
       run: |

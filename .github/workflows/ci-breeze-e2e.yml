@@ -49,7 +49,7 @@ jobs:
 
     - name: Build and install provider wheel inside container
       run: |
-        docker exec airflow_ci python -m pip install --upgrade pip
+        docker exec airflow_ci python -m pip install --upgrade pip setuptools wheel build
         docker exec airflow_ci sh -c 'cd /tmp/provider && python -m build'
         docker exec airflow_ci sh -c 'pip install /tmp/provider/dist/*.whl'
 

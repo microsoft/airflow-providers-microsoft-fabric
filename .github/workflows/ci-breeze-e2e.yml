@@ -28,17 +28,20 @@ jobs:
       run: |
         docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
 
-    - name: Start Airflow container with your provider
+    - name: Start Airflow container
       run: |
         docker run -d --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
-          -v ${{ github.workspace }}:/opt/airflow/provider \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
+
+    - name: Copy provider code into container
+      run: |
+        docker cp . airflow_ci:/home/airflow/provider
 
     - name: Install your provider
       run: |
-        docker exec airflow_ci python -m pip install -e /opt/airflow/provider
+        docker exec -u airflow airflow_ci python -m pip install -e /home/airflow/provider
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

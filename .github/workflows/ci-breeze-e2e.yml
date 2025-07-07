@@ -61,6 +61,10 @@ jobs:
         echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
         echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
+    - name: Initialize Airflow DB
+      run: |
+        docker exec airflow_ci airflow db init
+
     - name: Set Fabric connection in Airflow
       run: |
         docker exec -u airflow airflow_ci airflow connections add 'fabric_integration' \
@@ -78,7 +82,6 @@ jobs:
 
     - name: Run integration test DAG
       run: |
-        docker exec airflow_ci airflow db init
         docker exec airflow_ci airflow dags list
         docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
         sleep 60

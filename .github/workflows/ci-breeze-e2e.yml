@@ -4,7 +4,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: [main]
+    branches: ["**"]
   schedule:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
@@ -40,7 +40,7 @@ jobs:
 
     - name: Install your provider
       run: |
-        docker exec airflow_ci pip install -e /opt/airflow/provider
+        docker exec -u airflow airflow_ci python -m pip install -e /opt/airflow/provider
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth
@@ -52,7 +52,7 @@ jobs:
 
     - name: Set Fabric connection in Airflow
       run: |
-        docker exec airflow_ci airflow connections add 'fabric_integration' \
+        docker exec -u airflow airflow_ci airflow connections add 'fabric_integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{
             "client_id": "${{ steps.fabric_auth.outputs.client_id }}",

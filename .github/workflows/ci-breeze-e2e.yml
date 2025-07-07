@@ -39,6 +39,10 @@ jobs:
       run: |
         docker cp . airflow_ci:/home/airflow/provider
 
+    - name: Fix permissions of provider code
+      run: |
+        docker exec airflow_ci chown -R airflow: /home/airflow/provider
+
     - name: Install your provider
       run: |
         docker exec -u airflow airflow_ci python -m pip install -e /home/airflow/provider

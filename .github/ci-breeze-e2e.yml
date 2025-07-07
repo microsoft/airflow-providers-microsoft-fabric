@@ -2,7 +2,7 @@ name: Run Airflow Integration Tests
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   schedule:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 

@@ -1,8 +1,6 @@
 name: Run Airflow Integration Tests
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
     branches: ["**"]
   schedule:
@@ -40,7 +38,7 @@ jobs:
 
     - name: Install your provider
       run: |
-        docker exec -u airflow airflow_ci python -m pip install -e /opt/airflow/provider
+        docker exec airflow_ci python -m pip install -e /opt/airflow/provider
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

@@ -35,9 +35,11 @@ jobs:
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
-    - name: Copy provider code into container
+    - name: Copy only build files and source code into container
       run: |
-        docker cp . airflow_ci:/home/airflow/provider
+        docker exec airflow_ci mkdir -p /home/airflow/provider
+        docker cp pyproject.toml airflow_ci:/home/airflow/provider/
+        docker cp src airflow_ci:/home/airflow/provider/
 
     - name: Fix permissions of provider code
       run: |

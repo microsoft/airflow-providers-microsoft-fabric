@@ -32,7 +32,8 @@ jobs:
       run: |
         docker run -d --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
-          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
+          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
+          -e AIRFLOW_HOME=/home/airflow \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
     - name: Prepare provider files for container
@@ -66,9 +67,9 @@ jobs:
     - name: Start Airflow components
       run: |
         docker exec airflow_ci airflow db init
-        docker exec -d airflow_ci sh -c 'airflow scheduler > /root/airflow/logs/scheduler.log 2>&1'
-        docker exec -d airflow_ci sh -c 'airflow webserver > /root/airflow/logs/webserver.log 2>&1'
-        docker exec -d airflow_ci sh -c 'airflow triggerer > /root/airflow/logs/triggerer.log 2>&1'
+        docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
+        docker exec -d airflow_ci sh -c 'airflow webserver > /home/airflow/logs/webserver.log 2>&1'
+        docker exec -d airflow_ci sh -c 'airflow triggerer > /home/airflow/logs/triggerer.log 2>&1'
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -96,7 +97,7 @@ jobs:
     - name: Save Airflow logs
       if: always()
       run: |
-        docker cp airflow_ci:/root/airflow/logs ./logs
+        docker cp airflow_ci:/home/airflow/logs ./logs
         tar -czf logs.tar.gz logs
 
     - name: Upload logs artifact

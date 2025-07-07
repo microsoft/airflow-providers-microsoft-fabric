@@ -36,23 +36,23 @@ jobs:
           -e AIRFLOW_HOME=/home/airflow \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
-    - name: Prepare provider files for container
-      run: |
-        mkdir provider_clean
-        cp pyproject.toml provider_clean/
-        cp -r src provider_clean/
-        test -f README.md && cp README.md provider_clean/ || echo "# Dummy README" > provider_clean/README.md
-
-    - name: Copy provider files into container using tar (preserves permissions)
-      run: |
-        docker exec airflow_ci mkdir -p /tmp/provider
+            docker exec airflow_ci mkdir -p /tmp/provider
         tar -cf - -C provider_clean . | docker exec -i airflow_ci tar -xf - -C /tmp/provider
 
-    - name: Build and install provider wheel inside container
+    - name: Build provider wheel locally
       run: |
-        docker exec airflow_ci python -m pip install --upgrade pip setuptools wheel build
-        docker exec airflow_ci sh -c 'cd /tmp/provider && python -m build'
-        docker exec airflow_ci sh -c 'pip install /tmp/provider/dist/*.whl'
+        pip install build
+        python -m build -o dist_local
+
+    - name: Copy provider wheel into container
+      run: |
+        docker exec airflow_ci mkdir -p /tmp/wheels
+        docker cp dist_local/. airflow_ci:/tmp/wheels/
+
+    - name: Install provider wheel in container
+      run: |
+        docker exec airflow_ci python -m pip install --upgrade pip
+        docker exec airflow_ci pip install /tmp/wheels/*.whl
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

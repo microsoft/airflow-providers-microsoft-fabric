@@ -35,15 +35,21 @@ jobs:
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
-    - name: Copy only source and build files into container
+    - name: Prepare provider files for container
+      run: |
+        mkdir provider_clean
+        cp pyproject.toml provider_clean/
+        cp -r src provider_clean/
+        test -f README.md && cp README.md provider_clean/ || echo "# Dummy README" > provider_clean/README.md
+
+    - name: Copy provider files into container
       run: |
         docker exec airflow_ci mkdir -p /home/airflow/provider
-        docker cp pyproject.toml airflow_ci:/home/airflow/provider/
-        docker cp src airflow_ci:/home/airflow/provider/
+        docker cp provider_clean/. airflow_ci:/home/airflow/provider/
 
-    
-    - name: Install your provider
+    - name: Upgrade pip and install your provider
       run: |
+        docker exec airflow_ci python -m pip install --upgrade pip
         docker exec airflow_ci python -m pip install -e /home/airflow/provider
 
     - name: Parse Fabric credentials from JSON secret

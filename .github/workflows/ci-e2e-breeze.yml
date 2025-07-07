@@ -1,0 +1,90 @@
+name: Run Airflow Integration Tests
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+
+env:
+  DAG_DEST_PATH: /opt/airflow/dags
+  FABRIC_WORKSPACE_ID: your-workspace-id-here
+  FABRIC_ITEM_ID: your-item-id-here
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Pull Airflow Breeze CI image
+      run: |
+        docker pull ghcr.io/apache/airflow/main/ci/python${{ matrix.python-version }}
+
+    - name: Start Airflow container with your provider
+      run: |
+        docker run -d --name airflow_ci \
+          -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
+          -v ${{ github.workspace }}:/opt/airflow/provider \
+          ghcr.io/apache/airflow/main/ci/python${{ matrix.python-version }} sleep infinity
+
+    - name: Install your provider
+      run: |
+        docker exec airflow_ci pip install -e /opt/airflow/provider
+
+    - name: Parse Fabric credentials from JSON secret
+      id: fabric_auth
+      run: |
+        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
+        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
+
+    - name: Set Fabric connection in Airflow
+      run: |
+        docker exec airflow_ci airflow connections add 'fabric_integration' \
+          --conn-type 'microsoft-fabric' \
+          --conn-extra '{
+            "client_id": "${{ steps.fabric_auth.outputs.client_id }}",
+            "tenant_id": "${{ steps.fabric_auth.outputs.tenant_id }}",
+            "client_secret": "${{ steps.fabric_auth.outputs.client_secret }}"
+          }'
+
+    - name: Deploy all integration test DAGs to Airflow
+      run: |
+        docker exec airflow_ci mkdir -p $DAG_DEST_PATH
+        find provider/tests/system -name "*.py" -exec docker cp {} airflow_ci:$DAG_DEST_PATH/ \;
+
+    - name: Run integration test DAG
+      run: |
+        docker exec airflow_ci airflow db init
+        docker exec airflow_ci airflow dags list
+        docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
+        sleep 60
+        docker exec airflow_ci airflow tasks list test_fabric_notebook_run
+        docker exec airflow_ci airflow tasks test test_fabric_notebook_run run_notebook "$(date +%Y-%m-%d)"
+
+    - name: Save Airflow logs
+      if: always()
+      run: |
+        docker cp airflow_ci:/root/airflow/logs ./logs
+        tar -czf logs.tar.gz logs
+
+    - name: Upload logs artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: airflow-logs-${{ matrix.python-version }}
+        path: logs.tar.gz
+
+    - name: Stop and remove container
+      if: always()
+      run: |
+        docker stop airflow_ci
+        docker rm airflow_ci

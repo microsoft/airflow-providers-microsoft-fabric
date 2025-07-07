@@ -28,18 +28,6 @@ jobs:
       run: |
         docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
 
-    - name: Start Airflow container (Breeze-compatible CI image)
-      run: |
-        docker run -d --name airflow_ci \
-          -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
-          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
-          -e AIRFLOW__WEBSERVER__RBAC=True \
-          -e _AIRFLOW_DB_UPGRADE=True \
-          -e _AIRFLOW_WWW_USER_CREATE=True \
-          -e _AIRFLOW_WWW_USER_USERNAME=airflow \
-          -e _AIRFLOW_WWW_USER_PASSWORD=airflow \
-          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} bash -c "airflow db init && airflow scheduler & airflow webserver"
-
     - name: Prepare provider files for container
       run: |
         mkdir provider_clean
@@ -57,6 +45,18 @@ jobs:
         docker exec airflow_ci python -m pip install --upgrade pip setuptools wheel build
         docker exec airflow_ci sh -c 'cd /tmp/provider && python -m build'
         docker exec airflow_ci sh -c 'pip install /tmp/provider/dist/*.whl'
+
+    - name: Start Airflow container (Breeze-compatible CI image)
+      run: |
+        docker run -d --name airflow_ci \
+          -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
+          -e AIRFLOW__WEBSERVER__RBAC=True \
+          -e _AIRFLOW_DB_UPGRADE=True \
+          -e _AIRFLOW_WWW_USER_CREATE=True \
+          -e _AIRFLOW_WWW_USER_USERNAME=airflow \
+          -e _AIRFLOW_WWW_USER_PASSWORD=airflow \
+          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} bash -c "airflow db init && airflow scheduler & airflow webserver"
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

@@ -25,7 +25,8 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest",
-    "pytest-mock"
+    "pytest-mock",
+    "pytest-asyncio"
 ]
 
 [project.urls]
@@ -47,3 +48,5 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py", "fabric.py"]
 python_functions = ["test_*"]
 addopts = "-v"
+asyncio_mode = "auto"
+

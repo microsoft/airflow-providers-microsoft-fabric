@@ -50,7 +50,7 @@ jobs:
     - name: Install provider wheel in container
       run: |
         docker exec airflow_ci python -m pip install --upgrade pip
-        docker exec airflow_ci pip install /tmp/wheels/*.whl
+        docker exec airflow_ci python -m pip install /tmp/wheels/*.whl
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

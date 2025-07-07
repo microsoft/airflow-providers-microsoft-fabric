@@ -33,12 +33,7 @@ jobs:
         docker run -d --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////root/airflow/airflow.db \
-          -e AIRFLOW__WEBSERVER__RBAC=True \
-          -e _AIRFLOW_DB_UPGRADE=True \
-          -e _AIRFLOW_WWW_USER_CREATE=True \
-          -e _AIRFLOW_WWW_USER_USERNAME=airflow \
-          -e _AIRFLOW_WWW_USER_PASSWORD=airflow \
-          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} bash -c "airflow db init && airflow scheduler & airflow webserver"
+          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
     - name: Prepare provider files for container
       run: |
@@ -66,6 +61,14 @@ jobs:
         echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
         echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
+    
+
+    - name: Start Airflow components
+      run: |
+        docker exec airflow_ci airflow db init
+        docker exec -d airflow_ci sh -c 'airflow scheduler > /root/airflow/logs/scheduler.log 2>&1'
+        docker exec -d airflow_ci sh -c 'airflow webserver > /root/airflow/logs/webserver.log 2>&1'
+        docker exec -d airflow_ci sh -c 'airflow triggerer > /root/airflow/logs/triggerer.log 2>&1'
 
     - name: Set Fabric connection in Airflow
       run: |

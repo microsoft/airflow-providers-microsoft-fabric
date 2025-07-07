@@ -42,15 +42,15 @@ jobs:
         cp -r src provider_clean/
         test -f README.md && cp README.md provider_clean/ || echo "# Dummy README" > provider_clean/README.md
 
-    - name: Copy provider files into container
+    - name: Copy provider files into container (in /tmp)
       run: |
-        docker exec airflow_ci mkdir -p /home/airflow/provider
-        docker cp provider_clean/. airflow_ci:/home/airflow/provider/
+        docker cp provider_clean/. airflow_ci:/tmp/provider/
 
-    - name: Upgrade pip and install your provider
+    - name: Upgrade pip and install your provider from /tmp
       run: |
         docker exec airflow_ci python -m pip install --upgrade pip
-        docker exec airflow_ci python -m pip install -e /home/airflow/provider
+        docker exec -u airflow airflow_ci python -m pip install -e /tmp/provider
+        
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

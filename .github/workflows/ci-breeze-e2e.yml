@@ -10,6 +10,7 @@ env:
   DAG_DEST_PATH: /opt/airflow/dags
   FABRIC_WORKSPACE_ID: your-workspace-id-here
   FABRIC_ITEM_ID: your-item-id-here
+  AIRFLOW_HOME: /home/airflow
 
 jobs:
   integration-test:
@@ -40,12 +41,10 @@ jobs:
         free -h
         df -h
 
-        # Start container with basic setup - just keep it running
-        # Use SequentialExecutor which works with SQLite
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
-          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
-          -e AIRFLOW_HOME=/home/airflow \
+          -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db \
+          -e AIRFLOW_HOME=$AIRFLOW_HOME \
           -e AIRFLOW__WEBSERVER__WORKERS=1 \
           -e AIRFLOW__SCHEDULER__PARSING_PROCESSES=1 \
           -e AIRFLOW__LOGGING__LOGGING_LEVEL=INFO \
@@ -90,7 +89,7 @@ jobs:
       run: |
         echo "=== INITIALIZING AIRFLOW DATABASE ==="
         docker exec airflow_ci airflow db init
-        
+
         echo "=== CREATING AIRFLOW USER ==="
         docker exec airflow_ci airflow users create \
           --username admin \
@@ -111,19 +110,21 @@ jobs:
     - name: Start Airflow components with staggered startup
       run: |
         echo "=== STARTING AIRFLOW COMPONENTS ==="
-        
         # Start scheduler in background and get its PID
         echo "Starting scheduler..."
-        docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow scheduler' 
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow scheduler"
         
         # Start webserver in background 
         echo "Starting webserver..."
-        docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow webserver --port 8080'
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow webserver --port 8080"
         
         # Start triggerer in background
         echo "Starting triggerer..."
-        docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
-              
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow triggerer"
+
+        echo "Waiting for components to start ..."
+        sleep 10
+
         echo "Running health check ..."
         set -e
         RETRIES=30
@@ -156,7 +157,7 @@ jobs:
         exit 1
 
         echo "=== MEMORY STATUS ==="
-        docker stats --no-stream airflow_ci        
+        docker stats --no-stream airflow_ci
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -168,10 +169,11 @@ jobs:
             "client_secret": "${{ steps.fabric_auth.outputs.client_secret }}"
           }'
 
-    - name: Deploy all integration test DAGs to Airflow
+    - name: Deploy integration test DAGs to Airflow container
       run: |
-        docker exec airflow_ci mkdir -p $DAG_DEST_PATH
-        find provider/tests/system -name "*.py" -exec docker cp {} airflow_ci:$DAG_DEST_PATH/ \;
+        echo "Copying integration test DAGs to container..."
+        docker exec airflow_ci bash -c "mkdir -p $DAG_DEST_PATH"
+        docker cp tests/system/dags/. airflow_ci:"$DAG_DEST_PATH/"
 
     - name: Wait for DAG to be parsed
       run: |
@@ -184,7 +186,7 @@ jobs:
           echo "Attempt $i: DAG not found yet, waiting..."
           sleep 10
         done
-        
+
         echo "=== ALL DAGS ==="
         docker exec airflow_ci airflow dags list
 
@@ -219,10 +221,10 @@ jobs:
         mkdir -p ./logs
         
         # Get Airflow logs from default location
-        docker exec airflow_ci find /home/airflow/logs -name "*.log" -type f 2>/dev/null | head -20 || echo "No log files found"
+        docker exec airflow_ci find "$AIRFLOW_HOME"/logs -name "*.log" -type f 2>/dev/null | head -20 || echo "No log files found"
         
         # Copy logs if they exist
-        docker cp airflow_ci:/home/airflow/logs ./logs/ 2>/dev/null || echo "Failed to copy logs directory"
+        docker cp airflow_ci:"$AIRFLOW_HOME"/logs ./logs/ 2>/dev/null || echo "Failed to copy logs directory"
         
         # Get scheduler logs from stdout/stderr if running
         docker logs airflow_ci > ./logs/container.log 2>&1 || echo "Failed to get container logs"

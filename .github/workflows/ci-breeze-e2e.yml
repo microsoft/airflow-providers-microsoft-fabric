@@ -35,7 +35,18 @@ jobs:
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
           -e AIRFLOW_HOME=/home/airflow \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
-        docker exec airflow_ci cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+        docker exec airflow_ci sh -c '
+          if [ -f /sys/fs/cgroup/memory.max ]; then
+            echo "Cgroup v2 detected:"
+            echo "memory.max: $(cat /sys/fs/cgroup/memory.max)"
+            echo "memory.current: $(cat /sys/fs/cgroup/memory.current)"
+          elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+            echo "Cgroup v1 detected:"
+            echo "memory.limit_in_bytes: $(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)"
+          else
+            echo "Could not detect memory limits"
+          fi
+        '
 
     - name: Build provider wheel locally
       run: |

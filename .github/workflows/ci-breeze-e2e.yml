@@ -51,8 +51,10 @@ jobs:
           -e AIRFLOW__CORE__STORE_DAG_CODE=True \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
 
-        echo "=== FREE MEMORY INSIDE CONTAINER ==="
-        docker exec airflow_ci free -h
+        
+
+        echo "=== CONTAINER MEMORY USAGE ==="
+        docker stats --no-stream airflow_ci
 
     - name: Build provider wheel locally
       run: |
@@ -67,7 +69,7 @@ jobs:
     - name: Install provider wheel in container
       run: |
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
-        docker exec airflow_ci free -h
+        docker stats --no-stream airflow_ci
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth
@@ -78,45 +80,35 @@ jobs:
         echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
     - name: Initialize Airflow database
-      run: |
-        docker exec airflow_ci airflow db init
+      run: docker exec airflow_ci airflow db init
 
     - name: Start Airflow components with staggered startup
       run: |
-        # Create logs directory
         docker exec airflow_ci mkdir -p /home/airflow/logs
-        
-        # Start scheduler first and wait
-        echo "Starting Airflow scheduler..."
+
+        echo "Starting scheduler..."
         docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
         sleep 30
-        
-        # Check if scheduler is running
-        if ! docker exec airflow_ci pgrep -f "airflow scheduler" > /dev/null; then
-          echo "Scheduler failed to start, checking logs..."
+
+        docker exec airflow_ci pgrep -f "airflow scheduler" || {
+          echo "Scheduler failed to start"
           docker exec airflow_ci cat /home/airflow/logs/scheduler.log
           exit 1
-        fi
-        
-        # Start webserver with reduced workers
-        echo "Starting Airflow webserver..."
+        }
+
+        echo "Starting webserver..."
         docker exec -d airflow_ci sh -c 'airflow webserver --port 8080 > /home/airflow/logs/webserver.log 2>&1'
         sleep 20
-        
-        # Start triggerer
-        echo "Starting Airflow triggerer..."
+
+        echo "Starting triggerer..."
         docker exec -d airflow_ci sh -c 'airflow triggerer > /home/airflow/logs/triggerer.log 2>&1'
         sleep 10
-        
-        # Final memory check
-        echo "=== FINAL MEMORY STATUS ==="
-        docker exec airflow_ci free -h
+
+        echo "=== MEMORY STATUS AFTER COMPONENT START ==="
         docker stats --no-stream airflow_ci
-        
-        # Verify all components are running
-        echo "Checking Airflow processes..."
+
         docker exec airflow_ci ps aux | grep airflow
-        
+
     - name: Set Fabric connection in Airflow
       run: |
         docker exec -u airflow airflow_ci airflow connections add 'fabric_integration' \

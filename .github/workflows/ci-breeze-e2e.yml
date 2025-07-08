@@ -112,9 +112,6 @@ jobs:
       run: |
         echo "=== STARTING AIRFLOW COMPONENTS ==="
         
-        # Create log directory
-        docker exec airflow_ci mkdir -p /home/airflow/logs
-        
         # Start scheduler in background and get its PID
         echo "Starting scheduler..."
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow scheduler' 
@@ -128,22 +125,34 @@ jobs:
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
         
         echo "=== CHECKING AIRFLOW PROCESSES ==="
-        sleep 15
-        # Check what's actually running
-        docker exec airflow_ci ps aux | head -20
+        sleep 10
+
+        # Use /proc to check processes since ps isn't available
+        docker exec airflow_ci ls -la /proc/*/cmdline 2>/dev/null | wc -l || echo "Cannot count processes"
         
-        echo "=== AIRFLOW SPECIFIC PROCESSES ==="
-        docker exec airflow_ci ps aux | grep -E "(airflow|gunicorn)" || echo "No airflow processes found"
+        echo "=== CHECKING FOR AIRFLOW PROCESSES ==="
+        docker exec airflow_ci bash -c 'find /proc -name cmdline -exec grep -l "airflow" {} \; 2>/dev/null | head -10' || echo "No airflow processes found"
         
-        echo "=== CHECKING PORTS ==="
-        docker exec airflow_ci netstat -tlnp 2>/dev/null || docker exec airflow_ci ss -tlnp 2>/dev/null || echo "Cannot check ports"
+        echo "=== CHECKING PORTS (using /proc/net/tcp) ==="
+        docker exec airflow_ci cat /proc/net/tcp 2>/dev/null | grep -E "(1F90|0050)" || echo "Cannot check ports via /proc"
         
         echo "=== MEMORY STATUS ==="
         docker stats --no-stream airflow_ci
         
-        # Test if webserver is responding
+        # Test if webserver is responding using python instead of curl
         echo "=== TESTING WEBSERVER HEALTH ==="
-        docker exec airflow_ci curl -s http://localhost:8080/health || echo "Webserver health check failed"
+        docker exec airflow_ci python3 -c "
+import urllib.request
+try:
+    response = urllib.request.urlopen('http://localhost:8080/health', timeout=10)
+    print('Webserver health check:', response.status, response.reason)
+except Exception as e:
+    print('Webserver health check failed:', str(e))
+" || echo "Health check script failed"
+
+        echo "=== CHECKING AIRFLOW STATUS ==="
+        # Use airflow CLI to check status
+        docker exec airflow_ci airflow jobs check --hostname localhost || echo "Jobs check failed"
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -181,7 +190,7 @@ jobs:
         docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
         
         # Wait for DAG run to be created
-        sleep 60
+        sleep 30
         
         # List tasks
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run
@@ -214,12 +223,15 @@ jobs:
         # Get scheduler logs from stdout/stderr if running
         docker logs airflow_ci > ./logs/container.log 2>&1 || echo "Failed to get container logs"
         
-        # Get current process status
-        docker exec airflow_ci ps aux > ./logs/processes.log 2>&1 || echo "Failed to get process list"
+        # Get current process status using /proc instead of ps
+        docker exec airflow_ci bash -c 'find /proc -maxdepth 2 -name cmdline -exec bash -c "echo -n \"PID: \$(basename \$(dirname {})): \"; cat {} 2>/dev/null || echo \"(no cmdline)\"" \; | grep -v "^$" | head -20' > ./logs/processes.log 2>&1 || echo "Failed to get process list"
         
         # Get Airflow version and config info  
         docker exec airflow_ci airflow version > ./logs/airflow_version.log 2>&1 || echo "Failed to get Airflow version"
         docker exec airflow_ci airflow config list > ./logs/airflow_config.log 2>&1 || echo "Failed to get Airflow config"
+        
+        # Get container environment
+        docker exec airflow_ci env | grep AIRFLOW > ./logs/airflow_env.log 2>&1 || echo "Failed to get Airflow environment"
         
         # List what we captured
         echo "=== CAPTURED LOG FILES ==="

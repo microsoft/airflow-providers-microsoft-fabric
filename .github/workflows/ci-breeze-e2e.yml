@@ -26,7 +26,7 @@ jobs:
 
     - name: Pull Airflow production image from Docker Hub
       run: |
-        docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
+        docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}-ci
 
     - name: Start Airflow container (Breeze-compatible CI image)
       run: |

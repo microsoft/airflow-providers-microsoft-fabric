@@ -24,18 +24,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Free up disk space and memory
+    - name: Check initial memory state
       run: |
-        # Remove unnecessary packages to free up memory and disk space
-        sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mongodb-.*' '^mysql-.*' '^postgresql-.*'
-        sudo apt-get autoremove -y
-        sudo apt-get autoclean
-        # Clear some caches
-        sudo rm -rf /usr/local/lib/android
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /usr/local/share/boost
-        # Show memory info
+        echo "=== INITIAL MEMORY STATE ==="
         free -h
         df -h
 
@@ -45,6 +36,11 @@ jobs:
 
     - name: Start Airflow container (with adequate memory)
       run: |
+        # Check host memory before starting container
+        echo "=== HOST MEMORY BEFORE CONTAINER ==="
+        free -h
+        df -h
+        
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
@@ -56,19 +52,32 @@ jobs:
           -e AIRFLOW__CORE__STORE_DAG_CODE=True \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
         
-        # Check memory limits
+        # Check container memory limits and actual usage
+        echo "=== CONTAINER MEMORY LIMITS ==="
         docker exec airflow_ci sh -c '
           if [ -f /sys/fs/cgroup/memory.max ]; then
             echo "Cgroup v2 detected:"
             echo "memory.max: $(cat /sys/fs/cgroup/memory.max)"
             echo "memory.current: $(cat /sys/fs/cgroup/memory.current)"
+            echo "memory.high: $(cat /sys/fs/cgroup/memory.high 2>/dev/null || echo "not set")"
+            echo "memory.swap.max: $(cat /sys/fs/cgroup/memory.swap.max 2>/dev/null || echo "not set")"
           elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
             echo "Cgroup v1 detected:"
             echo "memory.limit_in_bytes: $(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)"
+            echo "memory.usage_in_bytes: $(cat /sys/fs/cgroup/memory/memory.usage_in_bytes)"
+            echo "memory.memsw.limit_in_bytes: $(cat /sys/fs/cgroup/memory/memory.memsw.limit_in_bytes 2>/dev/null || echo "not set")"
           else
-            echo "Could not detect memory limits"
+            echo "Could not detect memory cgroup version"
           fi
         '
+        
+        # Check container stats
+        echo "=== DOCKER CONTAINER STATS ==="
+        docker stats --no-stream airflow_ci
+        
+        # Check host memory after container start
+        echo "=== HOST MEMORY AFTER CONTAINER START ==="
+        free -h
 
     - name: Build provider wheel locally
       run: |
@@ -101,15 +110,28 @@ jobs:
         # Create logs directory
         docker exec airflow_ci mkdir -p /home/airflow/logs
         
+        # Check memory before starting components
+        echo "=== MEMORY BEFORE AIRFLOW COMPONENTS ==="
+        docker exec airflow_ci free -h
+        docker stats --no-stream airflow_ci
+        
         # Start scheduler first and wait
         echo "Starting Airflow scheduler..."
         docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
         sleep 30
         
+        # Check memory after scheduler start
+        echo "=== MEMORY AFTER SCHEDULER START ==="
+        docker exec airflow_ci free -h
+        docker stats --no-stream airflow_ci
+        
         # Check if scheduler is running
         if ! docker exec airflow_ci pgrep -f "airflow scheduler" > /dev/null; then
           echo "Scheduler failed to start, checking logs..."
           docker exec airflow_ci cat /home/airflow/logs/scheduler.log
+          echo "=== MEMORY AT FAILURE ==="
+          docker exec airflow_ci free -h 2>/dev/null || echo "Container may have crashed"
+          docker stats --no-stream airflow_ci 2>/dev/null || echo "Container not responding"
           exit 1
         fi
         
@@ -118,10 +140,20 @@ jobs:
         docker exec -d airflow_ci sh -c 'airflow webserver --port 8080 > /home/airflow/logs/webserver.log 2>&1'
         sleep 20
         
+        # Check memory after webserver start
+        echo "=== MEMORY AFTER WEBSERVER START ==="
+        docker exec airflow_ci free -h
+        docker stats --no-stream airflow_ci
+        
         # Start triggerer
         echo "Starting Airflow triggerer..."
         docker exec -d airflow_ci sh -c 'airflow triggerer > /home/airflow/logs/triggerer.log 2>&1'
         sleep 10
+        
+        # Final memory check
+        echo "=== FINAL MEMORY STATUS ==="
+        docker exec airflow_ci free -h
+        docker stats --no-stream airflow_ci
         
         # Verify all components are running
         echo "Checking Airflow processes..."

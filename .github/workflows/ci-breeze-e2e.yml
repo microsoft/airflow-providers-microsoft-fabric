@@ -61,8 +61,6 @@ jobs:
         echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
         echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
-    
-
     - name: Start Airflow components
       run: |
         docker exec airflow_ci airflow db init

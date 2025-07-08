@@ -48,7 +48,6 @@ jobs:
 
     - name: Install provider wheel in container
       run: |
-        docker exec airflow_ci python -m pip install --upgrade pip --no-cache-dir
         docker exec airflow_ci python -m pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl
     
     - name: Parse Fabric credentials from JSON secret

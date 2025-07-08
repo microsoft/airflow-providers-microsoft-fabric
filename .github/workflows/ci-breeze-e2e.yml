@@ -13,7 +13,7 @@ env:
 
 jobs:
   integration-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-4-cores  # 16GB RAM instead of 7GB
     strategy:
       matrix:
         include:
@@ -24,17 +24,39 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Free up disk space and memory
+      run: |
+        # Remove unnecessary packages to free up memory and disk space
+        sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mongodb-.*' '^mysql-.*' '^postgresql-.*'
+        sudo apt-get autoremove -y
+        sudo apt-get autoclean
+        # Clear some caches
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        # Show memory info
+        free -h
+        df -h
+
     - name: Pull Airflow production image from Docker Hub
       run: |
-        docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}-ci
+        docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
 
-    - name: Start Airflow container (Breeze-compatible CI image)
+    - name: Start Airflow container (with adequate memory)
       run: |
-        docker run -d --memory=6g --name airflow_ci \
+        docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
           -e AIRFLOW_HOME=/home/airflow \
+          -e AIRFLOW__WEBSERVER__WORKERS=2 \
+          -e AIRFLOW__SCHEDULER__PARSING_PROCESSES=2 \
+          -e AIRFLOW__LOGGING__LOGGING_LEVEL=INFO \
+          -e AIRFLOW__CORE__STORE_SERIALIZED_DAGS=True \
+          -e AIRFLOW__CORE__STORE_DAG_CODE=True \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
+        
+        # Check memory limits
         docker exec airflow_ci sh -c '
           if [ -f /sys/fs/cgroup/memory.max ]; then
             echo "Cgroup v2 detected:"
@@ -62,7 +84,6 @@ jobs:
       run: |
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
 
-    
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth
       run: |
@@ -71,12 +92,40 @@ jobs:
         echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
         echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
-    - name: Start Airflow components
+    - name: Initialize Airflow database
       run: |
         docker exec airflow_ci airflow db init
+
+    - name: Start Airflow components with staggered startup
+      run: |
+        # Create logs directory
+        docker exec airflow_ci mkdir -p /home/airflow/logs
+        
+        # Start scheduler first and wait
+        echo "Starting Airflow scheduler..."
         docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
-        docker exec -d airflow_ci sh -c 'airflow webserver > /home/airflow/logs/webserver.log 2>&1'
+        sleep 30
+        
+        # Check if scheduler is running
+        if ! docker exec airflow_ci pgrep -f "airflow scheduler" > /dev/null; then
+          echo "Scheduler failed to start, checking logs..."
+          docker exec airflow_ci cat /home/airflow/logs/scheduler.log
+          exit 1
+        fi
+        
+        # Start webserver with reduced workers
+        echo "Starting Airflow webserver..."
+        docker exec -d airflow_ci sh -c 'airflow webserver --port 8080 > /home/airflow/logs/webserver.log 2>&1'
+        sleep 20
+        
+        # Start triggerer
+        echo "Starting Airflow triggerer..."
         docker exec -d airflow_ci sh -c 'airflow triggerer > /home/airflow/logs/triggerer.log 2>&1'
+        sleep 10
+        
+        # Verify all components are running
+        echo "Checking Airflow processes..."
+        docker exec airflow_ci ps aux | grep airflow
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -93,9 +142,21 @@ jobs:
         docker exec airflow_ci mkdir -p $DAG_DEST_PATH
         find provider/tests/system -name "*.py" -exec docker cp {} airflow_ci:$DAG_DEST_PATH/ \;
 
+    - name: Wait for DAG to be parsed
+      run: |
+        echo "Waiting for DAG to be parsed..."
+        for i in {1..30}; do
+          if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
+            echo "DAG found after $i attempts"
+            break
+          fi
+          echo "Attempt $i: DAG not found yet, waiting..."
+          sleep 10
+        done
+        docker exec airflow_ci airflow dags list
+
     - name: Run integration test DAG
       run: |
-        docker exec airflow_ci airflow dags list
         docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
         sleep 60
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run

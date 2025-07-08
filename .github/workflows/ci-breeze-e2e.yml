@@ -34,12 +34,13 @@ jobs:
       run: |
         docker pull apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }}
 
-    - name: Start Airflow container (with memory limits)
+    - name: Start Airflow container (basic setup)
       run: |
         echo "=== HOST MEMORY BEFORE CONTAINER START ==="
         free -h
         df -h
 
+        # Start container with basic setup - just keep it running
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
@@ -49,9 +50,22 @@ jobs:
           -e AIRFLOW__LOGGING__LOGGING_LEVEL=INFO \
           -e AIRFLOW__CORE__STORE_SERIALIZED_DAGS=True \
           -e AIRFLOW__CORE__STORE_DAG_CODE=True \
-          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} tail -f /dev/null
+          -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+          -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False \
+          -e AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=10 \
+          -e AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT=False \
+          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} \
+          tail -f /dev/null
 
-        
+        echo "=== WAITING FOR CONTAINER TO START ==="
+        sleep 10
+
+        # Verify container is running
+        if ! docker ps | grep -q airflow_ci; then
+          echo "Container failed to start. Checking logs..."
+          docker logs airflow_ci
+          exit 1
+        fi
 
         echo "=== CONTAINER MEMORY USAGE ==="
         docker stats --no-stream airflow_ci
@@ -71,16 +85,20 @@ jobs:
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
         docker stats --no-stream airflow_ci
 
-    - name: Parse Fabric credentials from JSON secret
-      id: fabric_auth
-      run: |
-        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
-        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
-
     - name: Initialize Airflow database
-      run: docker exec airflow_ci airflow db init
+      run: |
+        echo "=== INITIALIZING AIRFLOW DATABASE ==="
+        docker exec airflow_ci airflow db init
+        
+        echo "=== CREATING AIRFLOW USER ==="
+        docker exec airflow_ci airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin || echo "User creation failed or user already exists"
+
 
     - name: Start Airflow components with staggered startup
       run: |
@@ -90,11 +108,12 @@ jobs:
         docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
         sleep 30
 
-        docker exec airflow_ci pgrep -f "airflow scheduler" || {
+        # Check if scheduler started successfully
+        if ! docker exec airflow_ci pgrep -f "airflow scheduler" > /dev/null; then
           echo "Scheduler failed to start"
-          docker exec airflow_ci cat /home/airflow/logs/scheduler.log
+          docker exec airflow_ci cat /home/airflow/logs/scheduler.log || echo "No scheduler log found"
           exit 1
-        }
+        fi
 
         echo "Starting webserver..."
         docker exec -d airflow_ci sh -c 'airflow webserver --port 8080 > /home/airflow/logs/webserver.log 2>&1'
@@ -107,11 +126,20 @@ jobs:
         echo "=== MEMORY STATUS AFTER COMPONENT START ==="
         docker stats --no-stream airflow_ci
 
+        echo "=== RUNNING AIRFLOW PROCESSES ==="
         docker exec airflow_ci ps aux | grep airflow
+
+    - name: Parse Fabric credentials from JSON secret
+      id: fabric_auth
+      run: |
+        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
+        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
     - name: Set Fabric connection in Airflow
       run: |
-        docker exec -u airflow airflow_ci airflow connections add 'fabric_integration' \
+        docker exec airflow_ci airflow connections add 'fabric_integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{
             "client_id": "${{ steps.fabric_auth.outputs.client_id }}",
@@ -135,19 +163,36 @@ jobs:
           echo "Attempt $i: DAG not found yet, waiting..."
           sleep 10
         done
+        
+        echo "=== ALL DAGS ==="
         docker exec airflow_ci airflow dags list
 
     - name: Run integration test DAG
       run: |
+        # Trigger the DAG
         docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
+        
+        # Wait for DAG run to be created
         sleep 60
+        
+        # List tasks
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run
+        
+        # Test the specific task
         docker exec airflow_ci airflow tasks test test_fabric_notebook_run run_notebook "$(date +%Y-%m-%d)"
+
+    - name: Check DAG run status
+      run: |
+        echo "=== DAG RUNS ==="
+        docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run || echo "No DAG runs found"
+        
+        echo "=== TASK INSTANCES ==="
+        docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
 
     - name: Save Airflow logs
       if: always()
       run: |
-        docker cp airflow_ci:/home/airflow/logs ./logs
+        docker cp airflow_ci:/home/airflow/logs ./logs || echo "Failed to copy logs"
         tar -czf logs.tar.gz logs
 
     - name: Upload logs artifact
@@ -160,5 +205,5 @@ jobs:
     - name: Stop and remove container
       if: always()
       run: |
-        docker stop airflow_ci
-        docker rm airflow_ci
+        docker stop airflow_ci || echo "Container already stopped"
+        docker rm airflow_ci || echo "Container already removed"

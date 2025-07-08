@@ -125,33 +125,38 @@ jobs:
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
               
         echo "Running health check ..."
-        set -e
-        RETRIES=30
-        echo "Checking health at $HEALTH_URL using Basic Auth"
+          set -e
+          RETRIES=30
+          echo "Checking health at $HEALTH_URL using Basic Auth"
 
-        while [ $RETRIES -gt 0 ]; do
-          echo "---------------------------------------------"
-          echo "Attempt $((31 - RETRIES)) of 30"
-          
-          RESPONSE=$(curl --fail --silent -u "admin:admin" "$HEALTH_URL" || true)
-          echo "Health check response:"
-          echo "$RESPONSE"
+          while [ $RETRIES -gt 0 ]; do
+            echo "---------------------------------------------"
+            echo "Attempt $((31 - RETRIES)) of 30"
 
-          # Optional: pretty print if 'jq' is available in your image
-          # echo "$RESPONSE" | jq .
+            # Capture HTTP response and status code
+            RESPONSE=$(curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" -u "admin:admin" "$HEALTH_URL" || true)
 
-          if echo "$RESPONSE" | grep -q '"status": "healthy"'; then
-            echo "Airflow webserver and components are healthy!"
-            exit 0
-          fi
+            # Extract body and status
+            BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+            STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
 
-          echo "Not yet healthy. Retrying in 5s... ($RETRIES retries left)"
-          sleep 5
-          RETRIES=$((RETRIES - 1))
-        done
+            echo "HTTP Status Code: $STATUS"
+            echo "Response Body:"
+            echo "$BODY"
 
-        echo "Webserver health check failed after retries"
-        exit 1
+            # Check for both 200 and healthy status
+            if [ "$STATUS" -eq 200 ] && echo "$BODY" | grep -q '"status": "healthy"'; then
+              echo "Airflow webserver and components are healthy!"
+              exit 0
+            fi
+
+            echo "Not yet healthy. Retrying in 5s... ($RETRIES retries left)"
+            sleep 5
+            RETRIES=$((RETRIES - 1))
+          done
+
+          echo "Webserver health check failed after retries"
+          exit 1
 
         echo "=== MEMORY STATUS ==="
         docker stats --no-stream airflow_ci        

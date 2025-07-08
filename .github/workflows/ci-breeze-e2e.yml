@@ -123,40 +123,38 @@ jobs:
         # Start triggerer in background
         echo "Starting triggerer..."
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
-       
-        echo "=== Wait for processes to start ==="
-        sleep 15
-
-        # Use /proc to check processes since ps isn't available
-        docker exec airflow_ci ls -la /proc/*/cmdline 2>/dev/null | wc -l || echo "Cannot count processes"
-        
-        echo "=== CHECKING FOR AIRFLOW PROCESSES ==="
-        docker exec airflow_ci bash -c 'find /proc -name cmdline -exec grep -l "airflow" {} \; 2>/dev/null | head -10' || echo "No airflow processes found"
-        
-        echo "=== CHECKING PORTS (using /proc/net/tcp) ==="
-        docker exec airflow_ci cat /proc/net/tcp 2>/dev/null | grep -E "(1F90|0050)" || echo "Cannot check ports via /proc"
-        
-        echo "=== MEMORY STATUS ==="
-        docker stats --no-stream airflow_ci
-        
-        echo "=== Webserver health check ==="
+              
+        echo "Running health check ..."
         set -e
         RETRIES=30
-        echo "Checking health at $HEALTH_URL with Basic Auth (admin:admin)"
+        echo "Checking health at $HEALTH_URL using Basic Auth"
 
         while [ $RETRIES -gt 0 ]; do
-          if curl --fail --silent -u "admin:admin" "$HEALTH_URL"; then
-            echo "Webserver is healthy!"
+          echo "---------------------------------------------"
+          echo "Attempt $((31 - RETRIES)) of 30"
+          
+          RESPONSE=$(curl --fail --silent -u "admin:admin" "$HEALTH_URL" || true)
+          echo "Health check response:"
+          echo "$RESPONSE"
+
+          # Optional: pretty print if 'jq' is available in your image
+          # echo "$RESPONSE" | jq .
+
+          if echo "$RESPONSE" | grep -q '"status": "healthy"'; then
+            echo "Airflow webserver and components are healthy!"
             exit 0
-          else
-            echo "Waiting for webserver... ($RETRIES retries left)"
-            sleep 5
-            RETRIES=$((RETRIES - 1))
           fi
+
+          echo "Not yet healthy. Retrying in 5s... ($RETRIES retries left)"
+          sleep 5
+          RETRIES=$((RETRIES - 1))
         done
 
         echo "Webserver health check failed after retries"
         exit 1
+
+        echo "=== MEMORY STATUS ==="
+        docker stats --no-stream airflow_ci        
 
     - name: Set Fabric connection in Airflow
       run: |

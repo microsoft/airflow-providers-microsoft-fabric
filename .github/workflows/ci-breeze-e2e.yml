@@ -123,9 +123,9 @@ jobs:
         # Start triggerer in background
         echo "Starting triggerer..."
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
-        
+       
         echo "=== CHECKING AIRFLOW PROCESSES ==="
-        sleep 10
+        sleep 15
 
         # Use /proc to check processes since ps isn't available
         docker exec airflow_ci ls -la /proc/*/cmdline 2>/dev/null | wc -l || echo "Cannot count processes"
@@ -141,14 +141,20 @@ jobs:
         
         # Test if webserver is responding using python instead of curl
         echo "=== TESTING WEBSERVER HEALTH ==="
-        docker exec airflow_ci python3 -c "
+        docker exec airflow_ci bash -c 'cat > /tmp/health_check.py << EOF
 import urllib.request
+import urllib.error
 try:
-    response = urllib.request.urlopen('http://localhost:8080/health', timeout=10)
-    print('Webserver health check:', response.status, response.reason)
+    response = urllib.request.urlopen("http://localhost:8080/health", timeout=10)
+    print("Webserver health check: HTTP", response.status, response.reason)
+except urllib.error.HTTPError as e:
+    print("Webserver HTTP error:", e.code, e.reason)
+except urllib.error.URLError as e:
+    print("Webserver connection error:", str(e))
 except Exception as e:
-    print('Webserver health check failed:', str(e))
-" || echo "Health check script failed"
+    print("Webserver health check failed:", str(e))
+EOF
+python3 /tmp/health_check.py' || echo "Health check script failed"
 
         echo "=== CHECKING AIRFLOW STATUS ==="
         # Use airflow CLI to check status

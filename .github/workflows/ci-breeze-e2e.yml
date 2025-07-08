@@ -13,7 +13,7 @@ env:
 
 jobs:
   integration-test:
-    runs-on: ubuntu-latest-4-cores  # 16GB RAM instead of 7GB
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -110,28 +110,15 @@ jobs:
         # Create logs directory
         docker exec airflow_ci mkdir -p /home/airflow/logs
         
-        # Check memory before starting components
-        echo "=== MEMORY BEFORE AIRFLOW COMPONENTS ==="
-        docker exec airflow_ci free -h
-        docker stats --no-stream airflow_ci
-        
         # Start scheduler first and wait
         echo "Starting Airflow scheduler..."
         docker exec -d airflow_ci sh -c 'airflow scheduler > /home/airflow/logs/scheduler.log 2>&1'
         sleep 30
         
-        # Check memory after scheduler start
-        echo "=== MEMORY AFTER SCHEDULER START ==="
-        docker exec airflow_ci free -h
-        docker stats --no-stream airflow_ci
-        
         # Check if scheduler is running
         if ! docker exec airflow_ci pgrep -f "airflow scheduler" > /dev/null; then
           echo "Scheduler failed to start, checking logs..."
           docker exec airflow_ci cat /home/airflow/logs/scheduler.log
-          echo "=== MEMORY AT FAILURE ==="
-          docker exec airflow_ci free -h 2>/dev/null || echo "Container may have crashed"
-          docker stats --no-stream airflow_ci 2>/dev/null || echo "Container not responding"
           exit 1
         fi
         
@@ -139,11 +126,6 @@ jobs:
         echo "Starting Airflow webserver..."
         docker exec -d airflow_ci sh -c 'airflow webserver --port 8080 > /home/airflow/logs/webserver.log 2>&1'
         sleep 20
-        
-        # Check memory after webserver start
-        echo "=== MEMORY AFTER WEBSERVER START ==="
-        docker exec airflow_ci free -h
-        docker stats --no-stream airflow_ci
         
         # Start triggerer
         echo "Starting Airflow triggerer..."

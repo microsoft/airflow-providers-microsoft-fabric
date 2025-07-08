@@ -40,22 +40,22 @@ jobs:
         free -h
         df -h
 
-        # Start container with basic setup - just keep it running
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
           -e AIRFLOW_HOME=/home/airflow \
-          -e AIRFLOW__WEBSERVER__WORKERS=2 \
-          -e AIRFLOW__SCHEDULER__PARSING_PROCESSES=2 \
+          -e AIRFLOW__WEBSERVER__WORKERS=1 \
+          -e AIRFLOW__SCHEDULER__PARSING_PROCESSES=1 \
           -e AIRFLOW__LOGGING__LOGGING_LEVEL=INFO \
           -e AIRFLOW__CORE__STORE_SERIALIZED_DAGS=True \
           -e AIRFLOW__CORE__STORE_DAG_CODE=True \
-          -e AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+          -e AIRFLOW__CORE__EXECUTOR=SequentialExecutor \
           -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False \
           -e AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=10 \
           -e AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT=False \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} \
-          tail -f /dev/null
+          bash -c "while true; do sleep 30; done"
+
 
         echo "=== WAITING FOR CONTAINER TO START ==="
         sleep 10

@@ -124,7 +124,7 @@ jobs:
         echo "Starting triggerer..."
         docker exec -d airflow_ci bash -c 'cd /home/airflow && airflow triggerer'
        
-        echo "=== CHECKING AIRFLOW PROCESSES ==="
+        echo "=== Wait for processes to start ==="
         sleep 15
 
         # Use /proc to check processes since ps isn't available
@@ -139,26 +139,24 @@ jobs:
         echo "=== MEMORY STATUS ==="
         docker stats --no-stream airflow_ci
         
-        # Test if webserver is responding using python instead of curl
-        echo "=== TESTING WEBSERVER HEALTH ==="
-        docker exec airflow_ci bash -c 'cat > /tmp/health_check.py << EOF
-import urllib.request
-import urllib.error
-try:
-    response = urllib.request.urlopen("http://localhost:8080/health", timeout=10)
-    print("Webserver health check: HTTP", response.status, response.reason)
-except urllib.error.HTTPError as e:
-    print("Webserver HTTP error:", e.code, e.reason)
-except urllib.error.URLError as e:
-    print("Webserver connection error:", str(e))
-except Exception as e:
-    print("Webserver health check failed:", str(e))
-EOF
-python3 /tmp/health_check.py' || echo "Health check script failed"
+        echo "=== Webserver health check ==="
+        set -e
+        RETRIES=30
+        echo "Checking health at $HEALTH_URL with Basic Auth (admin:admin)"
 
-        echo "=== CHECKING AIRFLOW STATUS ==="
-        # Use airflow CLI to check status
-        docker exec airflow_ci airflow jobs check --hostname localhost || echo "Jobs check failed"
+        while [ $RETRIES -gt 0 ]; do
+          if curl --fail --silent -u "admin:admin" "$HEALTH_URL"; then
+            echo "Webserver is healthy!"
+            exit 0
+          else
+            echo "Waiting for webserver... ($RETRIES retries left)"
+            sleep 5
+            RETRIES=$((RETRIES - 1))
+          fi
+        done
+
+        echo "Webserver health check failed after retries"
+        exit 1
 
     - name: Set Fabric connection in Airflow
       run: |

@@ -35,6 +35,7 @@ jobs:
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
           -e AIRFLOW_HOME=/home/airflow \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
+        docker exec airflow_ci cat /sys/fs/cgroup/memory/memory.limit_in_bytes
 
     - name: Build provider wheel locally
       run: |

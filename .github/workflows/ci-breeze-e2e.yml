@@ -30,7 +30,7 @@ jobs:
 
     - name: Start Airflow container (Breeze-compatible CI image)
       run: |
-        docker run -d --name airflow_ci \
+        docker run -d --memory=6g --name airflow_ci \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////home/airflow/airflow.db \
           -e AIRFLOW_HOME=/home/airflow \

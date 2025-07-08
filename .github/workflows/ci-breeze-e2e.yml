@@ -49,7 +49,7 @@ jobs:
           -e AIRFLOW__LOGGING__LOGGING_LEVEL=INFO \
           -e AIRFLOW__CORE__STORE_SERIALIZED_DAGS=True \
           -e AIRFLOW__CORE__STORE_DAG_CODE=True \
-          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} sleep infinity
+          apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} tail -f /dev/null
 
         
 

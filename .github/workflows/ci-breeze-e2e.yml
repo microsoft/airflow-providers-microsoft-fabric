@@ -14,6 +14,7 @@ env:
 jobs:
   integration-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         include:
@@ -111,15 +112,15 @@ jobs:
         echo "=== STARTING AIRFLOW COMPONENTS ==="
         # Start scheduler in background and get its PID
         echo "Starting scheduler..."
-        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow scheduler"
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow scheduler >> \$AIRFLOW_HOME/logs/scheduler.log 2>&1"
         
         # Start webserver in background 
         echo "Starting webserver..."
-        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow webserver --port 8080"
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow webserver --port 8080 >> \$AIRFLOW_HOME/logs/webserver.log 2>&1"
         
         # Start triggerer in background
         echo "Starting triggerer..."
-        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow triggerer"
+        docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow triggerer >> \$AIRFLOW_HOME/logs/triggerer.log 2>&1"
 
         echo "Waiting for components to start ..."
         sleep 10

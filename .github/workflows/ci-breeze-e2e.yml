@@ -191,26 +191,39 @@ jobs:
 
     - name: Run integration test DAG
       run: |
-        # Trigger the DAG
+        echo "Triggering DAG run..."
         docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
-        
-        # Wait for DAG run to be created
-        sleep 30
-        
-        # List tasks
-        docker exec airflow_ci airflow tasks list test_fabric_notebook_run
-        
-        # Test the specific task
-        docker exec airflow_ci airflow tasks test test_fabric_notebook_run run_notebook "$(date +%Y-%m-%d)"
+
+        echo "Waiting for DAG run to complete..."
+        MAX_RETRIES=30
+        DELAY=10
+
+        for i in $(seq 1 $MAX_RETRIES); do
+          STATUS=$(docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run --no-color | awk '/test_fabric_notebook_run/ {print $6}' | head -n 1)
+          echo "Attempt $i: Current status = $STATUS"
+
+          if [ "$STATUS" = "success" ]; then
+            echo "DAG run succeeded."
+            exit 0
+          elif [ "$STATUS" = "failed" ]; then
+            echo "DAG run failed."
+            exit 1
+          fi
+
+          echo "DAG still running... waiting $DELAY seconds."
+          sleep $DELAY
+        done
+
+        echo "DAG did not complete in time."
+        exit 1
 
     - name: Check DAG run status
       run: |
         echo "=== DAG RUNS ==="
         docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run || echo "No DAG runs found"
-        
+
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
-
     - name: Save Airflow logs
       if: always()
       run: |

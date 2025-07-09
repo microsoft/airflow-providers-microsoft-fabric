@@ -26,7 +26,8 @@ dependencies = [
 test = [
     "pytest",
     "pytest-mock",
-    "pytest-asyncio"
+    "pytest-asyncio",
+    "apache-airflow==2.10.5"
 ]
 
 [project.urls]

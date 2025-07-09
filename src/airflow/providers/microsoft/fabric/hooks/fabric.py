@@ -13,9 +13,6 @@ from airflow.hooks.base import BaseHook
 from airflow.models import Connection
 from airflow.utils.session import provide_session
 
-FABRIC_SCOPES = "https://api.fabric.microsoft.com/Item.Execute.All https://api.fabric.microsoft.com/Item.ReadWrite.All offline_access openid profile"
-
-
 @provide_session
 def update_conn(conn_id, auth_token: str, session=None):
     conn = session.query(Connection).filter(Connection.conn_id == conn_id).one()
@@ -50,6 +47,15 @@ class FabricHook(BaseHook):
 
     :param fabric_conn_id: Airflow Connection ID that contains the connection
         information for the Fabric account used for authentication.
+        
+    The connection should include the following in the 'extras' field:
+    - endpoint: Fabric API endpoint (default: https://api.fabric.microsoft.com)
+    - tenantId: Azure tenant ID
+    - clientId: Azure client ID
+    - clientSecret: Azure client secret 
+    - workspaceId: Workspace ID (required for all operations)
+
+    All operations will use the workspaceId configured in the connection.
     """  # noqa: D205
 
     conn_type: str = "microsoft-fabric"
@@ -66,10 +72,11 @@ class FabricHook(BaseHook):
         from wtforms import StringField
 
         return {
+            "endpoint": StringField(lazy_gettext("Endpoint"), widget=BS3TextFieldWidget()),
             "tenantId": StringField(lazy_gettext("Tenant ID"), widget=BS3TextFieldWidget()),
             "clientId": StringField(lazy_gettext("Client ID"), widget=BS3TextFieldWidget()),
             "clientSecret": StringField(lazy_gettext("Client Secret"), widget=BS3PasswordFieldWidget()),
-            "scopes": StringField(lazy_gettext("Scopes"), widget=BS3TextFieldWidget()),
+            "workspaceId": StringField(lazy_gettext("Workspace ID"), widget=BS3TextFieldWidget()),
         }
 
     @classmethod
@@ -78,6 +85,10 @@ class FabricHook(BaseHook):
         return {
             "hidden_fields": ["schema", "port", "host", "extra", "login", "password"],
             "relabeling": {},
+            "placeholders": {
+                "extra__microsoft-fabric__endpoint": "https://api.fabric.microsoft.com",
+                "extra__microsoft-fabric__workspaceId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            },
         }
 
     def __init__(
@@ -89,11 +100,29 @@ class FabricHook(BaseHook):
     ):
         self.conn_id = fabric_conn_id
         self._api_version = "v1"
-        self._base_url = "https://api.fabric.microsoft.com"
+        self._base_url = self.get_connection(fabric_conn_id).extra_dejson.get('endpoint', "https://api.fabric.microsoft.com")
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.cached_access_token: dict[str, str | None | int] = {"access_token": None, "expiry_time": 0}
         super().__init__()
+
+    def get_workspace_id(self) -> str:
+        """
+        Get the workspace ID from the connection configuration.
+
+        :return: The workspace ID from the connection.
+        :raises AirflowException: If no workspace ID is found in connection configuration.
+        """
+        connection = self.get_connection(self.conn_id)
+        conn_workspace_id = connection.extra_dejson.get('workspaceId')
+        
+        if not conn_workspace_id:
+            raise AirflowException(
+                "No workspaceId found in connection configuration. "
+                "Please configure workspaceId in the connection extras."
+            )
+        
+        return conn_workspace_id
 
     def _get_token(self) -> str:
         """
@@ -115,7 +144,6 @@ class FabricHook(BaseHook):
         tenant_id = connection.extra_dejson.get('tenantId')
         client_id = connection.extra_dejson.get('clientId')
         client_secret = connection.extra_dejson.get('clientSecret')
-        scopes = connection.extra_dejson.get('scopes', FABRIC_SCOPES)
         
         if not tenant_id:
             raise AirflowException("Tenant id is empty or none")
@@ -124,13 +152,13 @@ class FabricHook(BaseHook):
         if not client_secret:
             raise AirflowException("Client secret is empty or none")
 
-        self.log.info(f"Authentication token not available or expired, creating new authentication token for Fabric. TenantId: '{tenant_id}', Client Id: '{client_id}', Client Secret: '{client_secret[:5]}...', Scopes: '{scopes}'")
+        self.log.info(f"Authentication token not available or expired, creating new authentication token for Fabric. TenantId: '{tenant_id}', Client Id: '{client_id}', Client Secret: '{client_secret[:5]}...'")
 
         data = {
             "grant_type": "client_credentials",
             "client_id": client_id,
             "client_secret": client_secret,
-            "scope": scopes,
+            "scope": "https://api.fabric.microsoft.com/.default",
         }
 
         response = self._send_request(
@@ -198,15 +226,15 @@ class FabricHook(BaseHook):
 
         return _internal_get_item_run_details()
 
-    def get_item_details(self, workspace_id: str, item_id: str) -> dict:
+    def get_item_details(self, item_id: str) -> dict:
         """
         Get details of the item.
 
-        :param workspace_id: The ID of the workspace in which the item is located.
         :param item_id: The ID of the item.
 
         :return: The details of the item.
         """
+        workspace_id = self.get_workspace_id()
         url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}"
 
         headers = self.get_headers()
@@ -217,17 +245,17 @@ class FabricHook(BaseHook):
 
         raise AirflowException(f"Failed to get item details for item {item_id} in workspace {workspace_id}.")
 
-    def run_fabric_item(self, workspace_id: str, item_id: str, job_type: str, job_params: dict | None) -> str:
+    def run_fabric_item(self, item_id: str, job_type: str, job_params: dict | None = None) -> str:
         """
         Run a Fabric item.
 
-        :param workspace_id: The workspace Id in which the item is located.
         :param item_id: The item Id. To check available items, Refer to: https://learn.microsoft.com/rest/api/fabric/admin/items/list-items?tabs=HTTP#itemtype.
         :param job_type: The type of job to run. For running a notebook, this should be "RunNotebook".
         :param job_params: An optional dictionary of parameters to pass to the job.
 
         :return: The run Id of item.
         """
+        workspace_id = self.get_workspace_id()
 
         # Prepares request URL and body for running the item.
         url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances?jobType={job_type}"
@@ -355,27 +383,30 @@ class FabricAsyncHook(FabricHook):
             "Authorization": f"Bearer {access_token}",
         }
 
-    async def async_get_item_run_details(self, workspace_id: str, item_id: str, item_run_id: str) -> None:
+    async def async_get_item_run_details(self, item_id: str, item_run_id: str) -> dict:
         """
         Get run details of the item instance.
 
-        :param location: The location of the item instance.
+        :param item_id: The item Id.
+        :param item_run_id: The Id of the item run.
+        :return: The item run details.
         """
+        workspace_id = self.get_workspace_id()
         url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances/{item_run_id}"
         headers = await self.async_get_headers()
         response = await self._async_send_request("GET", url, headers=headers)
 
         return response
 
-    async def cancel_item_run(self, workspace_id: str, item_id: str, item_run_id: str):
+    async def cancel_item_run(self, item_id: str, item_run_id: str) -> Any:
         """
         Cancel the item run.
 
-        :param workspace_id: The workspace Id in which the item is located.
         :param item_id: The item Id.
         :param item_run_id: The Id of the item run.
-
+        :return: The response from the cancel request.
         """
+        workspace_id = self.get_workspace_id()
         url = f"{self._base_url}/{self._api_version}/workspaces/{workspace_id}/items/{item_id}/jobs/instances/{item_run_id}/cancel"
         headers = await self.async_get_headers()
         response = await self._async_send_request("POST", url, headers=headers)

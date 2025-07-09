@@ -233,11 +233,14 @@ jobs:
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
 
-    - name: TAR AIRFLOW_HOME inside the container
+    - name: Tar selected AIRFLOW_HOME subdirectories
       if: always()
       run: |
-        echo "TAR \$AIRFLOW_HOME inside container..."
-        docker exec airflow_ci bash -c "tar -czf /tmp/airflow_home.tar.gz -C / $(echo $AIRFLOW_HOME | cut -c2-)"
+        docker exec airflow_ci bash -c '
+          tar -czf /tmp/airflow_home.tar.gz \
+            "$AIRFLOW_HOME/logs" \
+            "$AIRFLOW_HOME/dags" \
+            "$AIRFLOW_HOME/airflow.cfg"
 
     - name: Copy TAR archive from container
       if: always()

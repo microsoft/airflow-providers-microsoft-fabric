@@ -233,19 +233,19 @@ jobs:
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
 
-    - name: Copy AIRFLOW_HOME from container to host
+    - name: Zip Airflow home directory
       if: always()
       run: |
-        echo "=== COPYING AIRFLOW_HOME ==="
-        docker cp airflow_ci:$AIRFLOW_HOME ./airflow_home || echo "Failed to copy airflow home"
+        echo "Zipping ./airflow_home..."
+        zip -r airflow_home.zip ./airflow_home
 
-    - name: Upload Airflow Home as Artifact
+    - name: Upload zipped artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: airflow-home-${{ matrix.python-version }}-airflow-${{ matrix.airflow-version }}
-        path: ./airflow_home
-
+        path: airflow_home.zip
+        
     - name: Stop and remove container
       if: always()
       run: |

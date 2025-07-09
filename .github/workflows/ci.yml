@@ -7,29 +7,30 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - python-version: "3.12"
-            airflow-version: "2.10.5"
+  Unit-Tests:
+    build:
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          include:
+            - python-version: "3.12"
+              airflow-version: "2.10.5"
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Install dependencies including Airflow
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .[test]
-        curl -sSL https://raw.githubusercontent.com/apache/airflow/constraints-${{ matrix.airflow-version }}/constraints-${{ matrix.python-version }}.txt -o constraints.txt
-        pip install apache-airflow==${{ matrix.airflow-version }} -c constraints.txt
+      - name: Install dependencies including Airflow
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+          curl -sSL https://raw.githubusercontent.com/apache/airflow/constraints-${{ matrix.airflow-version }}/constraints-${{ matrix.python-version }}.txt -o constraints.txt
+          pip install apache-airflow==${{ matrix.airflow-version }} -c constraints.txt
 
-    - name: Run tests
-      run: pytest
+      - name: Run tests
+        run: pytest

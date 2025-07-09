@@ -6,13 +6,15 @@ on:
   schedule:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
+
 env:
   FABRIC_WORKSPACE_ID: your-workspace-id-here
   FABRIC_ITEM_ID: your-item-id-here
   AIRFLOW_HOME: /home/airflow
 
+
 jobs:
-  integration-test:
+  E2E-Integration-Tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

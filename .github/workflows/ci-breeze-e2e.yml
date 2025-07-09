@@ -233,18 +233,23 @@ jobs:
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
 
-    - name: Zip AIRFLOW_HOME inside the container
+    - name: TAR AIRFLOW_HOME inside the container
       if: always()
       run: |
-        echo "Zipping \$AIRFLOW_HOME inside container..."
-        docker exec airflow_ci bash -c "zip -r /tmp/airflow_home.zip \$AIRFLOW_HOME"
+        echo "TAR \$AIRFLOW_HOME inside container..."
+        docker exec airflow_ci bash -c "tar -czf /tmp/airflow_home.tar.gz -C / $(echo $AIRFLOW_HOME | cut -c2-)"
 
-    - name: Upload zipped artifact
+    - name: Copy TAR archive from container
+      if: always()
+      run: |
+        docker cp airflow_ci:/tmp/airflow_home.tar.gz ./airflow_home.tar.gz
+
+    - name: Upload TAR artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: airflow-home-${{ matrix.python-version }}-airflow-${{ matrix.airflow-version }}
-        path: airflow_home.zip
+        path: airflow_home.tar.gz
 
     - name: Stop and remove container
       if: always()

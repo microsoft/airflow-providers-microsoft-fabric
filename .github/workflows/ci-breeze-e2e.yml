@@ -161,7 +161,7 @@ jobs:
 
     - name: Set Fabric connection in Airflow
       run: |
-        docker exec airflow_ci airflow airflow providers list | grep microsoft \
+        docker exec airflow_ci airflow airflow providers list | grep microsoft 
         docker exec airflow_ci airflow connections add 'fabric_integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{

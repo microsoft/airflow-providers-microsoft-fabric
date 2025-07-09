@@ -207,7 +207,7 @@ jobs:
         DELAY=10
 
         for i in $(seq 1 $MAX_RETRIES); do
-          STATUS=$(docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run --limit 1 --output json | jq -r '.[0].state')
+          STATUS=$(docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run | awk 'NR>2 {print $5; exit}')
           echo "Attempt $i: Current status = $STATUS"
 
           if [ "$STATUS" = "success" ]; then

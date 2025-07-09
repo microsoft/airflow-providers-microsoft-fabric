@@ -161,6 +161,7 @@ jobs:
 
     - name: Set Fabric connection in Airflow
       run: |
+        docker exec airflow_ci airflow airflow providers list | grep microsoft \
         docker exec airflow_ci airflow connections add 'fabric_integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{
@@ -168,6 +169,7 @@ jobs:
             "tenant_id": "${{ steps.fabric_auth.outputs.tenant_id }}",
             "client_secret": "${{ steps.fabric_auth.outputs.client_secret }}"
           }'
+        docker exec airflow_ci airflow connections get 'fabric_integration'
 
     - name: Deploy integration test DAGs to Airflow container
       run: |
@@ -225,45 +227,19 @@ jobs:
 
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
-    - name: Save Airflow logs
+
+   - name: Copy AIRFLOW_HOME from container to host
       if: always()
       run: |
-        echo "=== CAPTURING AIRFLOW LOGS ==="
-        
-        # Create logs directory
-        mkdir -p ./logs
-        
-        # Get Airflow logs from default location
-        docker exec airflow_ci find "$AIRFLOW_HOME"/logs -name "*.log" -type f 2>/dev/null | head -20 || echo "No log files found"
-        
-        # Copy logs if they exist
-        docker cp airflow_ci:"$AIRFLOW_HOME"/logs ./logs/ 2>/dev/null || echo "Failed to copy logs directory"
-        
-        # Get scheduler logs from stdout/stderr if running
-        docker logs airflow_ci > ./logs/container.log 2>&1 || echo "Failed to get container logs"
-        
-        # Get current process status using /proc instead of ps
-        docker exec airflow_ci bash -c 'find /proc -maxdepth 2 -name cmdline -exec bash -c "echo -n \"PID: \$(basename \$(dirname {})): \"; cat {} 2>/dev/null || echo \"(no cmdline)\"" \; | grep -v "^$" | head -20' > ./logs/processes.log 2>&1 || echo "Failed to get process list"
-        
-        # Get Airflow version and config info  
-        docker exec airflow_ci airflow version > ./logs/airflow_version.log 2>&1 || echo "Failed to get Airflow version"
-        docker exec airflow_ci airflow config list > ./logs/airflow_config.log 2>&1 || echo "Failed to get Airflow config"
-        
-        # Get container environment
-        docker exec airflow_ci env | grep AIRFLOW > ./logs/airflow_env.log 2>&1 || echo "Failed to get Airflow environment"
-        
-        # List what we captured
-        echo "=== CAPTURED LOG FILES ==="
-        find ./logs -type f -name "*.log" -exec echo "File: {} ($(wc -l < {} || echo 0) lines)" \;
-        
-        tar -czf logs.tar.gz logs
+        echo "=== COPYING AIRFLOW_HOME ==="
+        docker cp airflow_ci:$AIRFLOW_HOME ./airflow_home || echo "Failed to copy airflow home"
 
-    - name: Upload logs artifact
+    - name: Upload Airflow Home as Artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: airflow-logs-${{ matrix.python-version }}-airflow-${{ matrix.airflow-version }}
-        path: logs.tar.gz
+        name: airflow-home-${{ matrix.python-version }}-airflow-${{ matrix.airflow-version }}
+        path: ./airflow_home
 
     - name: Stop and remove container
       if: always()

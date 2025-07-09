@@ -12,7 +12,7 @@ with DAG(
   # Assumes the workspace_id and item_id are already set in the Airflow connection
   run_fabric_item_1 = FabricRunItemOperator(
     task_id="run_fabric_item_1",
-    fabric_conn_id="FabricDailyConn",
+    fabric_conn_id="fabric_integration",
     workspace_id="50fe240b-100b-485f-a434-b1e188d00637",
     item_id="08d738b5-d8ef-4730-8b10-d08d8dc5b4f7",
     job_type="RunNotebook",
@@ -22,7 +22,7 @@ with DAG(
 
   run_fabric_item_2 = FabricRunItemOperator(
     task_id="run_fabric_item_2",
-    fabric_conn_id="FabricDailyConn",
+    fabric_conn_id="fabric_integration",
     workspace_id="50fe240b-100b-485f-a434-b1e188d00637",
     item_id="08d738b5-d8ef-4730-8b10-d08d8dc5b4f7",
     job_type="RunNotebook",
@@ -32,7 +32,7 @@ with DAG(
 
   run_fabric_item_3 = FabricRunItemOperator(
   task_id="run_fabric_item_3",
-  fabric_conn_id="FabricDailyConn",
+  fabric_conn_id="fabric_integration",
   workspace_id="50fe240b-100b-485f-a434-b1e188d00637",
   item_id="08d738b5-d8ef-4730-8b10-d08d8dc5b4f7",
   job_type="RunNotebook",

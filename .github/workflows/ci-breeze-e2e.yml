@@ -161,7 +161,10 @@ jobs:
 
     - name: Set Fabric connection in Airflow
       run: |
-        docker exec airflow_ci airflow airflow providers list | grep microsoft 
+        echo "=== CHECK FABRIC PROVIDER WAS INSTALLED ==="
+        docker exec airflow_ci airflow providers list | grep microsoft 
+
+        echo "=== SETTING FABRIC CONNECTION IN AIRFLOW ==="
         docker exec airflow_ci airflow connections add 'fabric_integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{
@@ -169,6 +172,8 @@ jobs:
             "tenant_id": "${{ steps.fabric_auth.outputs.tenant_id }}",
             "client_secret": "${{ steps.fabric_auth.outputs.client_secret }}"
           }'
+
+        echo "=== CHECK CONNECTION IS AVAILABLE ==="
         docker exec airflow_ci airflow connections get 'fabric_integration'
 
     - name: Deploy integration test DAGs to Airflow container

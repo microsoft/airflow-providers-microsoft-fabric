@@ -238,11 +238,13 @@ jobs:
     - name: Tar selected AIRFLOW_HOME subdirectories
       if: always()
       run: |
-        docker exec airflow_ci bash -c '
-          tar -czf /tmp/airflow_home.tar.gz \
-            "$AIRFLOW_HOME/logs" \
-            "$AIRFLOW_HOME/dags" \
-            "$AIRFLOW_HOME/airflow.cfg"
+        docker exec airflow_ci bash -c "
+            tar -czf /tmp/airflow_home.tar.gz \
+              \"\$AIRFLOW_HOME/logs\" \
+              \"\$AIRFLOW_HOME/dags\" \
+              \"\$AIRFLOW_HOME/airflow.cfg\"
+          "
+
 
     - name: Copy TAR archive from container
       if: always()

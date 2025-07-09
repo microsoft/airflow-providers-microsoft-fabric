@@ -3,21 +3,21 @@ def get_provider_info():
         "package-name": "apache-airflow-providers-microsoft-fabric",
         "name": "Provider for integrating with Microsoft Fabric services",
         "description": "Adds easy connectivity to Microsoft Fabric",
-
         "hooks": [
             {
                 "integration-name": "microsoft-fabric", 
                 "python-modules": ["airflow.providers.microsoft.fabric.hooks.fabric"]
             }
         ],
-
         "operators": [
             {
                 "integration-name": "microsoft-fabric",
                 "python-modules": ["airflow.providers.microsoft.fabric.operators.fabric"],
             }
         ],
-
+        "operator-extra-links": [
+            "airflow.providers.microsoft.fabric.operators.fabric.FabricRunItemLink"
+        ],
         "connection-types": [
             {
                 "connection-type": "microsoft-fabric",

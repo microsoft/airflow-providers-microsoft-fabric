@@ -12,7 +12,7 @@ env:
   AIRFLOW_HOME: /home/airflow
 
 jobs:
-  integration-test:
+  E2E-Integration-Tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -228,7 +228,7 @@ jobs:
         echo "=== TASK INSTANCES ==="
         docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
 
-   - name: Copy AIRFLOW_HOME from container to host
+    - name: Copy AIRFLOW_HOME from container to host
       if: always()
       run: |
         echo "=== COPYING AIRFLOW_HOME ==="

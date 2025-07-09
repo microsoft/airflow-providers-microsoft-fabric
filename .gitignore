@@ -5,3 +5,6 @@ __pycache__/
 **/__pycache__/
 /.venv/include
 .venv/lib64
+.venv/pyvenv.cfg
+.venv/pyvenv.cfg
+.venv/pyvenv.cfg

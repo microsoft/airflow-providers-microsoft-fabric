@@ -4,8 +4,6 @@ from airflow.providers.microsoft.fabric.operators.fabric import FabricRunItemOpe
 
 with DAG(
   dag_id="test_fabric_notebook_run",
-  schedule_interval="@daily",
-  start_date=datetime(2023, 8, 7),
   catchup=False,
 ) as dag:
 

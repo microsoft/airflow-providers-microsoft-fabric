@@ -13,9 +13,6 @@ from airflow.hooks.base import BaseHook
 from airflow.models import Connection
 from airflow.utils.session import provide_session
 
-FABRIC_SCOPES = "https://api.fabric.microsoft.com/Item.Execute.All https://api.fabric.microsoft.com/Item.ReadWrite.All offline_access openid profile"
-
-
 @provide_session
 def update_conn(conn_id, auth_token: str, session=None):
     conn = session.query(Connection).filter(Connection.conn_id == conn_id).one()
@@ -50,6 +47,12 @@ class FabricHook(BaseHook):
 
     :param fabric_conn_id: Airflow Connection ID that contains the connection
         information for the Fabric account used for authentication.
+        
+    The connection should include the following in the 'extras' field:
+    - endpoint: Fabric API endpoint (default: https://api.fabric.microsoft.com)
+    - tenantId: Azure tenant ID
+    - clientId: Azure client ID
+    - clientSecret: Azure client secret 
     """  # noqa: D205
 
     conn_type: str = "microsoft-fabric"
@@ -66,10 +69,10 @@ class FabricHook(BaseHook):
         from wtforms import StringField
 
         return {
+            "endpoint": StringField(lazy_gettext("Endpoint"), widget=BS3TextFieldWidget()),
             "tenantId": StringField(lazy_gettext("Tenant ID"), widget=BS3TextFieldWidget()),
             "clientId": StringField(lazy_gettext("Client ID"), widget=BS3TextFieldWidget()),
             "clientSecret": StringField(lazy_gettext("Client Secret"), widget=BS3PasswordFieldWidget()),
-            "scopes": StringField(lazy_gettext("Scopes"), widget=BS3TextFieldWidget()),
         }
 
     @classmethod
@@ -78,6 +81,9 @@ class FabricHook(BaseHook):
         return {
             "hidden_fields": ["schema", "port", "host", "extra", "login", "password"],
             "relabeling": {},
+            "placeholders": {
+                "extra__microsoft-fabric__endpoint": "https://api.fabric.microsoft.com",
+            },
         }
 
     def __init__(
@@ -89,7 +95,7 @@ class FabricHook(BaseHook):
     ):
         self.conn_id = fabric_conn_id
         self._api_version = "v1"
-        self._base_url = "https://api.fabric.microsoft.com"
+        self._base_url = self.get_connection(fabric_conn_id).extra_dejson.get('endpoint', "https://api.fabric.microsoft.com")
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.cached_access_token: dict[str, str | None | int] = {"access_token": None, "expiry_time": 0}
@@ -115,7 +121,6 @@ class FabricHook(BaseHook):
         tenant_id = connection.extra_dejson.get('tenantId')
         client_id = connection.extra_dejson.get('clientId')
         client_secret = connection.extra_dejson.get('clientSecret')
-        scopes = connection.extra_dejson.get('scopes', FABRIC_SCOPES)
         
         if not tenant_id:
             raise AirflowException("Tenant id is empty or none")
@@ -124,13 +129,13 @@ class FabricHook(BaseHook):
         if not client_secret:
             raise AirflowException("Client secret is empty or none")
 
-        self.log.info(f"Authentication token not available or expired, creating new authentication token for Fabric. TenantId: '{tenant_id}', Client Id: '{client_id}', Client Secret: '{client_secret[:5]}...', Scopes: '{scopes}'")
+        self.log.info(f"Authentication token not available or expired, creating new authentication token for Fabric. TenantId: '{tenant_id}', Client Id: '{client_id}', Client Secret: '{client_secret[:5]}...'")
 
         data = {
             "grant_type": "client_credentials",
             "client_id": client_id,
             "client_secret": client_secret,
-            "scope": scopes,
+            "scope": "https://api.fabric.microsoft.com/.default",
         }
 
         response = self._send_request(

@@ -95,10 +95,15 @@ class MSFabricHook(BaseHook):
     ):
         self.conn_id = fabric_conn_id
         self._api_version = "v1"
-        self._base_url = self.get_connection(fabric_conn_id).extra_dejson.get('endpoint', "https://api.fabric.microsoft.com")
+        self._base_url = self.get_connection(fabric_conn_id).extra_dejson.get('endpoint')
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.cached_access_token: dict[str, str | None | int] = {"access_token": None, "expiry_time": 0}
+
+        # Asign endpoint fallback value
+        if not self._base_url or self._base_url.isspace():
+            self._base_url = "https://api.fabric.microsoft.com"
+
         super().__init__()
 
     def _get_token(self) -> str:

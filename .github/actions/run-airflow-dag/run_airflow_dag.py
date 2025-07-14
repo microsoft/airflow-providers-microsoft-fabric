@@ -16,6 +16,7 @@ def main():
     timeout_minutes = int(os.environ.get("TIMEOUT_MINUTES", 15))
 
     # 1. Trigger DAG run
+    print(f"Triggering DAG '{dag_id}' on Airflow at {airflow_url}. User: {username}, Password: {password}.")
     trigger_url = f"{airflow_url.rstrip('/')}/api/v1/dags/{dag_id}/dagRuns"
     resp = requests.post(
         trigger_url,
@@ -31,6 +32,7 @@ def main():
     print(f"Triggered DAG run: {dag_run_id}")
 
     # 2. Poll DAG run status
+    print(f"Triggering DAG '{dag_id}' successfully. Waiting for it to complete. Timeout {timeout_minutes} min.")
     poll_url = f"{airflow_url.rstrip('/')}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}"
     end_time = time.time() + timeout_minutes * 60
     state = None

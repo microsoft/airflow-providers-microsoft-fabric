@@ -11,6 +11,11 @@ env:
   FABRIC_ITEM_ID: your-item-id-here
   AIRFLOW_HOME: /home/airflow
   FABRIC_API_ENDPOINT: https://dailyapi.fabric.microsoft.com
+  AIRFLOW_URL: http://localhost:8080
+  USER_NAME: admin
+  PASSWORD: admin
+  HEALTH_CHECK_TIMEOUT_MIN: 2
+  DAG_RUN_TIMEOUT_MIN: 10
 
 jobs:
   E2E-Integration-Tests:
@@ -55,6 +60,7 @@ jobs:
           -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False \
           -e AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=10 \
           -e AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT=False \
+          -e AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} \
           bash -c "while true; do sleep 30; done"
 
@@ -123,42 +129,13 @@ jobs:
         echo "Starting triggerer..."
         docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow triggerer >> \$AIRFLOW_HOME/logs/triggerer.log 2>&1"
 
-        echo "Waiting for components to start ..."
-        sleep 10
-
-        echo "Running health check ..."
-        set -e
-        RETRIES=30
-        echo "Checking health at http://localhost:8080/health inside container airflow_ci"
-
-        while [ $RETRIES -gt 0 ]; do
-          echo "---------------------------------------------"
-          echo "Attempt $((31 - RETRIES)) of 30"
-
-          RESPONSE=$(docker exec airflow_ci curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" -u "admin:admin" http://localhost:8080/health || true)
-
-          BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-          STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-          echo "HTTP Status Code: $STATUS"
-          echo "Response Body:"
-          echo "$BODY"
-
-          if [ "$STATUS" -eq 200 ] && echo "$BODY" | grep -q '"status": "healthy"'; then
-            echo "Airflow webserver and components are healthy!"
-            exit 0
-          fi
-
-          echo "Not yet healthy. Retrying in 5s... ($RETRIES retries left)"
-          sleep 5
-          RETRIES=$((RETRIES - 1))
-        done
-
-        echo "Webserver health check failed after retries"
-        exit 1
-
-        echo "=== MEMORY STATUS ==="
-        docker stats --no-stream airflow_ci
+    - name: Wait for health
+      uses: ./.github/actions/check-airflow-health
+      with:
+        airflow_url:  ${{ env.AIRFLOW_URL }}
+        username:     ${{ env.USER_NAME }}
+        password:     ${{ env.PASSWORD }}
+        timeout_minutes: ${{ env.HEALTH_CHECK_TIMEOUT_MIN }}
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -183,9 +160,6 @@ jobs:
         echo "Copying integration test DAGs to container..."
         docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
         docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
-
-    - name: Wait for DAG to be parsed
-      run: |
         echo "Waiting for DAG to be parsed..."
         for i in {1..30}; do
           if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
@@ -196,44 +170,17 @@ jobs:
           sleep 10
         done
 
-        echo "=== ALL DAGS ==="
+        echo "=== ALL DAGS AVAILABLE ==="
         docker exec airflow_ci airflow dags list
 
-    - name: Run integration test DAG
-      run: |
-        echo "Triggering DAG run..."
-        docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
-
-        echo "Waiting for DAG run to complete..."
-        MAX_RETRIES=30
-        DELAY=10
-
-        for i in $(seq 1 $MAX_RETRIES); do
-          STATUS=$(docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run | awk 'NR>2 {print $5; exit}')
-          echo "Attempt $i: Current status = $STATUS"
-
-          if [ "$STATUS" = "success" ]; then
-            echo "DAG run succeeded."
-            exit 0
-          elif [ "$STATUS" = "failed" ]; then
-            echo "DAG run failed."
-            exit 1
-          fi
-
-          echo "DAG still running... waiting $DELAY seconds."
-          sleep $DELAY
-        done
-
-        echo "DAG did not complete in time."
-        exit 1
-
-    - name: Check DAG run status
-      run: |
-        echo "=== DAG RUNS ==="
-        docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run || echo "No DAG runs found"
-
-        echo "=== TASK INSTANCES ==="
-        docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
+    - name: Run DAG and wait for completion
+      uses: ./.github/actions/run_airflow_dag.py
+      with:
+        airflow_url:     ${{ env.AIRFLOW_URL }}
+        username:        ${{ env.USER_NAME }}
+        password:        ${{ env.PASSWORD }}
+        timeout_minutes: ${{ env.HEALTH_CHECK_TIMEOUT_MIN }}
+        dag_id:          test_fabric_notebook_run
 
     - name: Tar selected AIRFLOW_HOME subdirectories
       if: always()

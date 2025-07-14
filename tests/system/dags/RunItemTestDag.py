@@ -5,6 +5,7 @@ from airflow.providers.microsoft.fabric.operators.fabric import FabricRunItemOpe
 with DAG(
   dag_id="test_fabric_notebook_run",
   catchup=False,
+  access_control={ "admin": {"can_read", "can_edit"} },
 ) as dag:
 
   # Assumes the workspace_id and item_id are already set in the Airflow connection

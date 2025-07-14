@@ -1,0 +1,30 @@
+name: 'Check Airflow Health'
+description: 'Poll /health until every component is healthy'
+inputs:
+  airflow_url:
+    description: 'Base URL, e.g. http://localhost:8080'
+    required: true
+  username:
+    description: 'Airflow username'
+    required: true
+  password:
+    description: 'Airflow password'
+    required: true
+  timeout_minutes:
+    description: 'Max minutes to wait'
+    required: false
+    default: '5'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with: { python-version: '3.11' }
+
+    - run: pip install requests
+
+    - run: python ${{ github.action_path }}/check_airflow_health.py
+      env:
+        AIRFLOW_URL:     ${{ inputs.airflow_url }}
+        USERNAME:        ${{ inputs.username }}
+        PASSWORD:        ${{ inputs.password }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}

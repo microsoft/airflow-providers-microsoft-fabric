@@ -14,7 +14,8 @@ env:
   FABRIC_WORKSPACE_ID: 988a1272-9da5-4936-be68-39e9b62d85ef
   FABRIC_ITEM_ID: 38579073-b94d-4b88-86e5-898bc15a2542
   AIRFLOW_HOME: /home/airflow
-  FABRIC_API_ENDPOINT: https://dailyapi.fabric.microsoft.com
+    # if not specified should fallback to https://api.fabric.microsoft.com
+  FABRIC_API_ENDPOINT:
   AIRFLOW_URL: http://localhost:8080
   USER_NAME: admin
   PASSWORD: admin
@@ -103,7 +104,7 @@ jobs:
         docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
         docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
 
-    - name: Parse Fabric credentials from JSON secret
+    - name: Fetch SPN Information used to create the Fabric connection
       id: fabric_auth
       run: |
         echo "tenant_id=${{ env.FABRIC_TENANT_ID }}" >> $GITHUB_OUTPUT      
@@ -183,7 +184,6 @@ jobs:
               \"\$AIRFLOW_HOME/dags\" \
               \"\$AIRFLOW_HOME/airflow.cfg\"
           "
-
 
     - name: Copy TAR archive from container
       if: always()

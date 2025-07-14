@@ -175,12 +175,12 @@ jobs:
         docker exec airflow_ci airflow dags list
 
     - name: Run DAG and wait for completion
-      uses: ./.github/actions/run_airflow_dag.py
+      uses: ./.github/actions/run_airflow_dag
       with:
         airflow_url:     ${{ env.AIRFLOW_URL }}
         username:        ${{ env.USER_NAME }}
         password:        ${{ env.PASSWORD }}
-        timeout_minutes: ${{ env.HEALTH_CHECK_TIMEOUT_MIN }}
+        timeout_minutes: ${{ env.DAG_RUN_TIMEOUT_MIN }}
         dag_id:          test_fabric_notebook_run
 
     - name: Tar selected AIRFLOW_HOME subdirectories

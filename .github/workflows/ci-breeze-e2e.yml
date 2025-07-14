@@ -175,7 +175,7 @@ jobs:
         docker exec airflow_ci airflow dags list
 
     - name: Run DAG and wait for completion
-      uses: ./.github/actions/run_airflow_dag
+      uses: ./.github/actions/run-airflow-dag
       with:
         airflow_url:     ${{ env.AIRFLOW_URL }}
         username:        ${{ env.USER_NAME }}

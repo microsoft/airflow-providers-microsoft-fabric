@@ -48,6 +48,7 @@ jobs:
         df -h
 
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
+          -p 8080:8080 \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db \
           -e AIRFLOW_HOME=$AIRFLOW_HOME \

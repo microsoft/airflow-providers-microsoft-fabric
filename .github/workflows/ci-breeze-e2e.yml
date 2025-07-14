@@ -93,6 +93,32 @@ jobs:
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
         docker stats --no-stream airflow_ci
 
+    - name: Deploy integration test DAGs to Airflow container
+      run: |
+        echo "Copying integration test DAGs to container..."
+        docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
+        docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
+        echo "Waiting for DAG to be parsed..."
+        for i in {1..30}; do
+          if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
+            echo "DAG found after $i attempts"
+            break
+          fi
+          echo "Attempt $i: DAG not found yet, waiting..."
+          sleep 10
+        done
+
+        echo "=== ALL DAGS AVAILABLE ==="
+        docker exec airflow_ci airflow dags list
+
+    - name: Parse Fabric credentials from JSON secret
+      id: fabric_auth
+      run: |
+        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
+        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
+        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
+
     - name: Initialize Airflow database
       run: |
         echo "=== INITIALIZING AIRFLOW DATABASE ==="
@@ -106,14 +132,6 @@ jobs:
           --role Admin \
           --email admin@example.com \
           --password admin || echo "User creation failed or user already exists"
-
-    - name: Parse Fabric credentials from JSON secret
-      id: fabric_auth
-      run: |
-        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
-        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
     - name: Start Airflow components with staggered startup
       run: |
@@ -155,24 +173,6 @@ jobs:
 
         echo "=== CHECK CONNECTION IS AVAILABLE ==="
         docker exec airflow_ci airflow connections get 'fabric_integration'
-
-    - name: Deploy integration test DAGs to Airflow container
-      run: |
-        echo "Copying integration test DAGs to container..."
-        docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
-        docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
-        echo "Waiting for DAG to be parsed..."
-        for i in {1..30}; do
-          if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
-            echo "DAG found after $i attempts"
-            break
-          fi
-          echo "Attempt $i: DAG not found yet, waiting..."
-          sleep 10
-        done
-
-        echo "=== ALL DAGS AVAILABLE ==="
-        docker exec airflow_ci airflow dags list
 
     - name: Run DAG and wait for completion
       uses: ./.github/actions/run-airflow-dag

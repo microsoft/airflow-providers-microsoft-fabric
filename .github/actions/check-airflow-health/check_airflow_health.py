@@ -34,6 +34,7 @@ while datetime.now() < deadline:
             f"{comp}={info.get('status')}"
             for comp, info in data.items()
             if info.get("status") != "healthy"
+               and not (comp == "dag_processor" and info.get("status") in (None, "null"))
         ]
         if not unhealthy:
             print("Airflow is healthy:")

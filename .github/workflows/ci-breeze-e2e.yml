@@ -93,23 +93,11 @@ jobs:
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
         docker stats --no-stream airflow_ci
 
-    - name: Deploy integration test DAGs to Airflow container
+    - name: Copy integration test DAGs to Airflow container
       run: |
         echo "Copying integration test DAGs to container..."
         docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
         docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
-        echo "Waiting for DAG to be parsed..."
-        for i in {1..30}; do
-          if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
-            echo "DAG found after $i attempts"
-            break
-          fi
-          echo "Attempt $i: DAG not found yet, waiting..."
-          sleep 10
-        done
-
-        echo "=== ALL DAGS AVAILABLE ==="
-        docker exec airflow_ci airflow dags list
 
     - name: Parse Fabric credentials from JSON secret
       id: fabric_auth

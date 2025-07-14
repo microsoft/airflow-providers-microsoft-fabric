@@ -21,7 +21,7 @@ def get_provider_info():
         "connection-types": [
             {
                 "connection-type": "microsoft-fabric",
-                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.fabric.FabricHook",
+                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.fabric.MSFabricHook",
             }
         ],
     }

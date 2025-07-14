@@ -7,10 +7,10 @@ on:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
 env:
-  FABRIC_WORKSPACE_ID: your-workspace-id-here
-  FABRIC_ITEM_ID: your-item-id-here
   FABRIC_TENANT_ID: 249bbd2f-29a0-4a32-a667-ce59e2aee561
   FABRIC_CLIENT_ID: 9abcc0ae-393f-42ae-b46e-8f4dff217fd9
+  FABRIC_WORKSPACE_ID: 988a1272-9da5-4936-be68-39e9b62d85ef
+  FABRIC_ITEM_ID: 38579073-b94d-4b88-86e5-898bc15a2542
   AIRFLOW_HOME: /home/airflow
   FABRIC_API_ENDPOINT: https://dailyapi.fabric.microsoft.com
   AIRFLOW_URL: http://localhost:8080

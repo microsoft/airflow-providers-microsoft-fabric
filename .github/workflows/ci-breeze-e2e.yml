@@ -11,7 +11,7 @@ env:
   FABRIC_ITEM_ID: your-item-id-here
   AIRFLOW_HOME: /home/airflow
   FABRIC_API_ENDPOINT: https://dailyapi.fabric.microsoft.com
-  AIRFLOW_URL: http://localhost:8080
+  AIRFLOW_URL: http://localhost:28080
   USER_NAME: admin
   PASSWORD: admin
   HEALTH_CHECK_TIMEOUT_MIN: 2

@@ -24,18 +24,18 @@ from typing import TYPE_CHECKING, Sequence
 from airflow.configuration import conf
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
 from airflow.providers.microsoft.fabric.hooks.fabric import (
-    FabricHook,
-    FabricRunItemException,
-    FabricRunItemStatus,
+    MSFabricHook,
+    MSFabricRunItemException,
+    MSFabricRunItemStatus,
 )
-from airflow.providers.microsoft.fabric.triggers.fabric import FabricTrigger
+from airflow.providers.microsoft.fabric.triggers.fabric import MSFabricRunItemTrigger
 
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey
     from airflow.utils.context import Context
 
 
-class FabricRunItemLink(BaseOperatorLink):
+class MSFabricRunItemLink(BaseOperatorLink):
     """
     Link to the Fabric item run details page.
 
@@ -56,7 +56,7 @@ class FabricRunItemLink(BaseOperatorLink):
         self.item_id = operator.item_id
         self.base_url = "https://app.fabric.microsoft.com"
         conn_id = operator.fabric_conn_id  # type: ignore
-        self.hook = FabricHook(fabric_conn_id=conn_id)
+        self.hook = MSFabricHook(fabric_conn_id=conn_id)
 
         item_details = self.hook.get_item_details(self.workspace_id, self.item_id)
         self.item_name = item_details.get("displayName")
@@ -71,7 +71,7 @@ class FabricRunItemLink(BaseOperatorLink):
         return url
 
 
-class FabricRunItemOperator(BaseOperator):
+class MSFabricRunItemOperator(BaseOperator):
     """Operator to run a Fabric item (e.g. a notebook) in a workspace."""
 
     template_fields: Sequence[str] = (
@@ -83,7 +83,7 @@ class FabricRunItemOperator(BaseOperator):
     )
     template_fields_renderers = {"parameters": "json"}
 
-    operator_extra_links = (FabricRunItemLink(),)
+    operator_extra_links = (MSFabricRunItemLink(),)
 
     def __init__(
         self,
@@ -115,9 +115,9 @@ class FabricRunItemOperator(BaseOperator):
         self.job_params = job_params
 
     @cached_property
-    def hook(self) -> FabricHook:
+    def hook(self) -> MSFabricHook:
         """Create and return the FabricHook (cached)."""
-        return FabricHook(fabric_conn_id=self.fabric_conn_id, max_retries=self.max_retries, retry_delay=self.retry_delay)
+        return MSFabricHook(fabric_conn_id=self.fabric_conn_id, max_retries=self.max_retries, retry_delay=self.retry_delay)
 
     def execute(self, context: Context) -> None:
         # Execute the item run
@@ -139,23 +139,23 @@ class FabricRunItemOperator(BaseOperator):
 
                 if self.hook.wait_for_item_run_status(
                     self.location,
-                    FabricRunItemStatus.COMPLETED,
+                    MSFabricRunItemStatus.COMPLETED,
                     check_interval=self.check_interval,
                     timeout=self.timeout,
                 ):
                     self.log.info("Item run %s has completed successfully.", self.item_run_id)
                 else:
-                    raise FabricRunItemException(
+                    raise MSFabricRunItemException(
                         f"Item run {self.item_run_id} has failed with status {self.item_run_status}."
                     )
             else:
                 end_time = time.monotonic() + self.timeout
 
-                if self.item_run_status not in FabricRunItemStatus.TERMINAL_STATUSES:
+                if self.item_run_status not in MSFabricRunItemStatus.TERMINAL_STATUSES:
                     self.log.info("Deferring the task to wait for item run to complete.")
 
                     self.defer(
-                        trigger=FabricTrigger(
+                        trigger=MSFabricRunItemTrigger(
                             fabric_conn_id=self.fabric_conn_id,
                             item_run_id=self.item_run_id,
                             wait_for_termination=self.wait_for_termination,
@@ -167,10 +167,10 @@ class FabricRunItemOperator(BaseOperator):
                         ),
                         method_name="execute_complete",
                     )
-                elif self.item_run_status == FabricRunItemStatus.COMPLETED:
+                elif self.item_run_status == MSFabricRunItemStatus.COMPLETED:
                     self.log.info("Item run %s has completed successfully.", self.item_run_id)
-                elif self.item_run_status in FabricRunItemStatus.FAILURE_STATES:
-                    raise FabricRunItemException(
+                elif self.item_run_status in MSFabricRunItemStatus.FAILURE_STATES:
+                    raise MSFabricRunItemException(
                         f"Item run {self.item_run_id} has failed with status {self.item_run_status}."
                     )
 
@@ -198,4 +198,4 @@ class FabricRunItemOperator(BaseOperator):
             self.log.info(event["message"])
             context["ti"].xcom_push(key="run_status", value=event["item_run_status"])
             if event["status"] == "error":
-                raise FabricRunItemException(str(event["message"]))
+                raise MSFabricRunItemException(str(event["message"]))

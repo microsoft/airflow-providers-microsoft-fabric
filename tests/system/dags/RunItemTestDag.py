@@ -1,15 +1,14 @@
 from airflow import DAG
 from datetime import datetime
-from airflow.providers.microsoft.fabric.operators.fabric import FabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.fabric import MSFabricRunItemOperator
 
 with DAG(
   dag_id="test_fabric_notebook_run",
   catchup=False,
-  access_control={ "admin": {"can_read", "can_edit"} },
 ) as dag:
 
   # Assumes the workspace_id and item_id are already set in the Airflow connection
-  run_fabric_item_1 = FabricRunItemOperator(
+  run_fabric_item_1 = MSFabricRunItemOperator(
     task_id="run_fabric_item_1",
     fabric_conn_id="fabric_integration",
     workspace_id="50fe240b-100b-485f-a434-b1e188d00637",
@@ -19,7 +18,7 @@ with DAG(
     deferrable=True,
   )
 
-  run_fabric_item_2 = FabricRunItemOperator(
+  run_fabric_item_2 = MSFabricRunItemOperator(
     task_id="run_fabric_item_2",
     fabric_conn_id="fabric_integration",
     workspace_id="50fe240b-100b-485f-a434-b1e188d00637",
@@ -29,7 +28,7 @@ with DAG(
     deferrable=False,
   )
 
-  run_fabric_item_3 = FabricRunItemOperator(
+  run_fabric_item_3 = MSFabricRunItemOperator(
   task_id="run_fabric_item_3",
   fabric_conn_id="fabric_integration",
   workspace_id="50fe240b-100b-485f-a434-b1e188d00637",

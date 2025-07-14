@@ -21,7 +21,7 @@ def update_conn(conn_id, auth_token: str, session=None):
     session.commit()
 
 
-class FabricRunItemStatus:
+class MSFabricRunItemStatus:
     """Fabric item run operation statuses."""
 
     IN_PROGRESS = "InProgress"
@@ -36,11 +36,11 @@ class FabricRunItemStatus:
     FAILURE_STATES = {FAILED, CANCELLED, DEDUPED}
 
 
-class FabricRunItemException(AirflowException):
+class MSFabricRunItemException(AirflowException):
     """An exception that indicates a item run failed to complete."""
 
 
-class FabricHook(BaseHook):
+class MSFabricHook(BaseHook):
     """
     A hook to interact with Microsoft Fabric.
     This hook uses OAuth token created from an SPN.
@@ -198,7 +198,7 @@ class FabricHook(BaseHook):
             item_run_details = response.json()
             item_failure_reason = item_run_details.get("failureReason", dict())
             if item_failure_reason is not None and item_failure_reason.get("errorCode") in ["RequestExecutionFailed", "NotFound"]:
-                raise FabricRunItemException("Unable to get item run details.")
+                raise MSFabricRunItemException("Unable to get item run details.")
             return item_run_details
 
         return _internal_get_item_run_details()
@@ -275,11 +275,11 @@ class FabricHook(BaseHook):
         while time.monotonic() - start_time < timeout:
             item_run_details = self.get_item_run_details(location)
             item_run_status = item_run_details["status"]
-            if item_run_status in FabricRunItemStatus.TERMINAL_STATUSES:
+            if item_run_status in MSFabricRunItemStatus.TERMINAL_STATUSES:
                 return item_run_status == target_status
             self.log.info("Sleeping for %s. The pipeline state is %s.", check_interval, item_run_status)
             time.sleep(check_interval)
-        raise FabricRunItemException(
+        raise MSFabricRunItemException(
             f"Item run did not reach the target status {target_status} within the {timeout} seconds."
         )
 
@@ -305,7 +305,7 @@ class FabricHook(BaseHook):
         return response
 
 
-class FabricAsyncHook(FabricHook):
+class MSFabricAsyncHook(MSFabricHook):
     """
     Interact with Microsoft Fabric asynchronously.
 

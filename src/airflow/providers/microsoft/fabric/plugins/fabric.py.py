@@ -1,8 +1,8 @@
 from airflow.plugins_manager import AirflowPlugin
-from airflow.providers.microsoft.fabric.hooks.fabric import FabricHook
+from airflow.providers.microsoft.fabric.hooks.fabric import MSFabricHook
 
 class FabricPlugin(AirflowPlugin):
     name = "microsoft-fabric-plugin"
-    hooks = [FabricHook]
+    hooks = [MSFabricHook]
 
 

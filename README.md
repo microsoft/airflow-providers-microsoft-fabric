@@ -34,7 +34,7 @@ Since custom connection forms aren't feasible in Apache Airflow plugins, use can
 
 
 ## Operators
-### FabricRunItemOperator
+### MSFabricRunItemOperator
 This operator composes the logic for this plugin. It triggers the Fabric item run and pushes the details in Xcom. It can accept the following parameters:
 
 * `workspace_id`: The workspace Id.
@@ -78,7 +78,7 @@ Ready to give it a spin? Check out the sample DAG code below:
 from __future__ import annotations
 
 from airflow import DAG
-from airflow.providers.microsoft.fabric.operators.fabric import FabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.fabric import MSFabricRunItemOperator
 from airflow.utils.dates import days_ago
 
 default_args = {
@@ -93,7 +93,7 @@ with DAG(
     catchup=False,
 ) as dag:
 
-    run_notebook = FabricRunItemOperator(
+    run_notebook = MSFabricRunItemOperator(
         task_id="run_fabric_notebook",
         workspace_id="<workspace_id>",
         item_id="<item_id>",

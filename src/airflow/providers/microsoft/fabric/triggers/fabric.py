@@ -5,10 +5,10 @@ import time
 from typing import AsyncIterator
 
 from airflow.triggers.base import BaseTrigger, TriggerEvent
-from airflow.providers.microsoft.fabric.hooks.fabric import FabricAsyncHook, FabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.fabric import MSFabricAsyncHook, MSFabricRunItemStatus
 
 
-class FabricTrigger(BaseTrigger):
+class MSFabricRunItemTrigger(BaseTrigger):
     """Trigger when a Fabric item run finishes."""
 
     def __init__(
@@ -33,9 +33,9 @@ class FabricTrigger(BaseTrigger):
         self.wait_for_termination = wait_for_termination
 
     def serialize(self):
-        """Serialize the FabricTrigger instance."""
+        """Serialize the MSFabricRunItemTrigger instance."""
         return (
-            "airflow.providers.microsoft.fabric.triggers.fabric.FabricTrigger",
+            "airflow.providers.microsoft.fabric.triggers.fabric.MSFabricRunItemTrigger",
             {
                 "fabric_conn_id": self.fabric_conn_id,
                 "item_run_id": self.item_run_id,
@@ -50,7 +50,7 @@ class FabricTrigger(BaseTrigger):
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
         """Make async connection to the fabric and polls for the item run status."""
-        hook = FabricAsyncHook(fabric_conn_id=self.fabric_conn_id)
+        hook = MSFabricAsyncHook(fabric_conn_id=self.fabric_conn_id)
 
         try:
             while self.end_time > time.monotonic():
@@ -60,7 +60,7 @@ class FabricTrigger(BaseTrigger):
                     item_id=self.item_id,
                 )
                 item_run_status = item_run_details["status"]
-                if item_run_status == FabricRunItemStatus.COMPLETED:
+                if item_run_status == MSFabricRunItemStatus.COMPLETED:
                     yield TriggerEvent(
                         {
                             "status": "success",
@@ -70,7 +70,7 @@ class FabricTrigger(BaseTrigger):
                         }
                     )
                     return
-                elif item_run_status in FabricRunItemStatus.FAILURE_STATES:
+                elif item_run_status in MSFabricRunItemStatus.FAILURE_STATES:
                     yield TriggerEvent(
                         {
                             "status": "error",
@@ -112,7 +112,7 @@ class FabricTrigger(BaseTrigger):
                         "status": "error",
                         "message": str(error),
                         "run_id": self.item_run_id,
-                        "item_run_status": FabricRunItemStatus.CANCELLED,
+                        "item_run_status": MSFabricRunItemStatus.CANCELLED,
                     }
                 )
                 return

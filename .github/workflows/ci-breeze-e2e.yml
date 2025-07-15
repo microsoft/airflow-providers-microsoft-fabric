@@ -7,10 +7,20 @@ on:
     - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
 env:
-  FABRIC_WORKSPACE_ID: your-workspace-id-here
-  FABRIC_ITEM_ID: your-item-id-here
+  FABRIC_TENANT_ID: 249bbd2f-29a0-4a32-a667-ce59e2aee561
+  FABRIC_CLIENT_ID: 9abcc0ae-393f-42ae-b46e-8f4dff217fd9
+  # Visit github secret (CI_FABRIC_AUTH_SECRET) information: https://github.com/microsoft/airflow-providers-microsoft-fabric/settings/secrets/actions
+  # TODO: Workspace and ItemID are still hardcoded in the DAG file
+  FABRIC_WORKSPACE_ID: 988a1272-9da5-4936-be68-39e9b62d85ef
+  FABRIC_ITEM_ID: 38579073-b94d-4b88-86e5-898bc15a2542
   AIRFLOW_HOME: /home/airflow
-  FABRIC_API_ENDPOINT: https://dailyapi.fabric.microsoft.com
+    # if not specified should fallback to https://api.fabric.microsoft.com
+  FABRIC_API_ENDPOINT:
+  AIRFLOW_URL: http://localhost:8080
+  USER_NAME: admin
+  PASSWORD: admin
+  HEALTH_CHECK_TIMEOUT_MIN: 2
+  DAG_RUN_TIMEOUT_MIN: 10
 
 jobs:
   E2E-Integration-Tests:
@@ -43,6 +53,7 @@ jobs:
         df -h
 
         docker run -d --memory=8g --memory-swap=8g --name airflow_ci \
+          -p 8080:8080 \
           -e AIRFLOW__CORE__LOAD_EXAMPLES=False \
           -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db \
           -e AIRFLOW_HOME=$AIRFLOW_HOME \
@@ -55,6 +66,7 @@ jobs:
           -e AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False \
           -e AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL=10 \
           -e AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT=False \
+          -e AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth \
           apache/airflow:${{ matrix.airflow-version }}-python${{ matrix.python-version }} \
           bash -c "while true; do sleep 30; done"
 
@@ -86,6 +98,19 @@ jobs:
         docker exec airflow_ci bash -c "pip install --no-cache-dir /tmp/wheels/apache_airflow_providers_microsoft_fabric-*.whl"
         docker stats --no-stream airflow_ci
 
+    - name: Copy integration test DAGs to Airflow container
+      run: |
+        echo "Copying integration test DAGs to container..."
+        docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
+        docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
+
+    - name: Fetch SPN Information used to create the Fabric connection
+      id: fabric_auth
+      run: |
+        echo "tenant_id=${{ env.FABRIC_TENANT_ID }}" >> $GITHUB_OUTPUT      
+        echo "client_id=${{ env.FABRIC_CLIENT_ID }}" >> $GITHUB_OUTPUT
+        echo "client_secret=${{ secrets.CI_FABRIC_AUTH_SECRET }}" >> $GITHUB_OUTPUT
+
     - name: Initialize Airflow database
       run: |
         echo "=== INITIALIZING AIRFLOW DATABASE ==="
@@ -99,14 +124,6 @@ jobs:
           --role Admin \
           --email admin@example.com \
           --password admin || echo "User creation failed or user already exists"
-
-    - name: Parse Fabric credentials from JSON secret
-      id: fabric_auth
-      run: |
-        echo '${{ secrets.FABRIC_AUTH_JSON }}' > fabric.json
-        echo "client_id=$(jq -r .client_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "tenant_id=$(jq -r .tenant_id fabric.json)" >> $GITHUB_OUTPUT
-        echo "client_secret=$(jq -r .client_secret fabric.json)" >> $GITHUB_OUTPUT
 
     - name: Start Airflow components with staggered startup
       run: |
@@ -123,42 +140,13 @@ jobs:
         echo "Starting triggerer..."
         docker exec -d airflow_ci bash -c "cd $AIRFLOW_HOME && airflow triggerer >> \$AIRFLOW_HOME/logs/triggerer.log 2>&1"
 
-        echo "Waiting for components to start ..."
-        sleep 10
-
-        echo "Running health check ..."
-        set -e
-        RETRIES=30
-        echo "Checking health at http://localhost:8080/health inside container airflow_ci"
-
-        while [ $RETRIES -gt 0 ]; do
-          echo "---------------------------------------------"
-          echo "Attempt $((31 - RETRIES)) of 30"
-
-          RESPONSE=$(docker exec airflow_ci curl --silent --show-error --write-out "HTTPSTATUS:%{http_code}" -u "admin:admin" http://localhost:8080/health || true)
-
-          BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-          STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-          echo "HTTP Status Code: $STATUS"
-          echo "Response Body:"
-          echo "$BODY"
-
-          if [ "$STATUS" -eq 200 ] && echo "$BODY" | grep -q '"status": "healthy"'; then
-            echo "Airflow webserver and components are healthy!"
-            exit 0
-          fi
-
-          echo "Not yet healthy. Retrying in 5s... ($RETRIES retries left)"
-          sleep 5
-          RETRIES=$((RETRIES - 1))
-        done
-
-        echo "Webserver health check failed after retries"
-        exit 1
-
-        echo "=== MEMORY STATUS ==="
-        docker stats --no-stream airflow_ci
+    - name: Wait for health
+      uses: ./.github/actions/check-airflow-health
+      with:
+        airflow_url:  ${{ env.AIRFLOW_URL }}
+        username:     ${{ env.USER_NAME }}
+        password:     ${{ env.PASSWORD }}
+        timeout_minutes: ${{ env.HEALTH_CHECK_TIMEOUT_MIN }}
 
     - name: Set Fabric connection in Airflow
       run: |
@@ -178,62 +166,14 @@ jobs:
         echo "=== CHECK CONNECTION IS AVAILABLE ==="
         docker exec airflow_ci airflow connections get 'fabric_integration'
 
-    - name: Deploy integration test DAGs to Airflow container
-      run: |
-        echo "Copying integration test DAGs to container..."
-        docker exec airflow_ci bash -c "mkdir -p $AIRFLOW_HOME/dags"
-        docker cp tests/system/dags/. airflow_ci:"$AIRFLOW_HOME/dags"
-
-    - name: Wait for DAG to be parsed
-      run: |
-        echo "Waiting for DAG to be parsed..."
-        for i in {1..30}; do
-          if docker exec airflow_ci airflow dags list | grep -q "test_fabric_notebook_run"; then
-            echo "DAG found after $i attempts"
-            break
-          fi
-          echo "Attempt $i: DAG not found yet, waiting..."
-          sleep 10
-        done
-
-        echo "=== ALL DAGS ==="
-        docker exec airflow_ci airflow dags list
-
-    - name: Run integration test DAG
-      run: |
-        echo "Triggering DAG run..."
-        docker exec airflow_ci airflow dags trigger test_fabric_notebook_run
-
-        echo "Waiting for DAG run to complete..."
-        MAX_RETRIES=30
-        DELAY=10
-
-        for i in $(seq 1 $MAX_RETRIES); do
-          STATUS=$(docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run | awk 'NR>2 {print $5; exit}')
-          echo "Attempt $i: Current status = $STATUS"
-
-          if [ "$STATUS" = "success" ]; then
-            echo "DAG run succeeded."
-            exit 0
-          elif [ "$STATUS" = "failed" ]; then
-            echo "DAG run failed."
-            exit 1
-          fi
-
-          echo "DAG still running... waiting $DELAY seconds."
-          sleep $DELAY
-        done
-
-        echo "DAG did not complete in time."
-        exit 1
-
-    - name: Check DAG run status
-      run: |
-        echo "=== DAG RUNS ==="
-        docker exec airflow_ci airflow dags list-runs -d test_fabric_notebook_run || echo "No DAG runs found"
-
-        echo "=== TASK INSTANCES ==="
-        docker exec airflow_ci airflow tasks list test_fabric_notebook_run || echo "No tasks found"
+    - name: Run DAG and wait for completion
+      uses: ./.github/actions/run-airflow-dag
+      with:
+        airflow_url:     ${{ env.AIRFLOW_URL }}
+        username:        ${{ env.USER_NAME }}
+        password:        ${{ env.PASSWORD }}
+        timeout_minutes: ${{ env.DAG_RUN_TIMEOUT_MIN }}
+        dag_id:          test_fabric_notebook_run
 
     - name: Tar selected AIRFLOW_HOME subdirectories
       if: always()
@@ -244,7 +184,6 @@ jobs:
               \"\$AIRFLOW_HOME/dags\" \
               \"\$AIRFLOW_HOME/airflow.cfg\"
           "
-
 
     - name: Copy TAR archive from container
       if: always()

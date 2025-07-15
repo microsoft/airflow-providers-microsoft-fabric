@@ -1,10 +1,6 @@
-/.venv/bin
-/.venv/lib
-/src/apache_airflow_providers_microsoft_fabric.egg-info
+.venv/
+src/apache_airflow_providers_microsoft_fabric.egg-info/
+build/
+dist/
 __pycache__/
 **/__pycache__/
-/.venv/include
-.venv/lib64
-.venv/pyvenv.cfg
-.venv/pyvenv.cfg
-.venv/pyvenv.cfg

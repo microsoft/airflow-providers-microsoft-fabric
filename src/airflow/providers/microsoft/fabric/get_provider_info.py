@@ -16,12 +16,12 @@ def get_provider_info():
             }
         ],
         "operator-extra-links": [
-            "airflow.providers.microsoft.fabric.operators.fabric.FabricRunItemLink"
+            "airflow.providers.microsoft.fabric.operators.fabric.MSFabricRunItemLink"
         ],
         "connection-types": [
             {
                 "connection-type": "microsoft-fabric",
-                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.fabric.FabricHook",
+                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.fabric.MSFabricHook",
             }
         ],
     }

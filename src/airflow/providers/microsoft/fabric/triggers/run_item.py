@@ -5,7 +5,7 @@ import time
 from typing import AsyncIterator
 
 from airflow.triggers.base import BaseTrigger, TriggerEvent
-from airflow.providers.microsoft.fabric.hooks.fabric import MSFabricAsyncHook, MSFabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.run_item import MSFabricAsyncHook, MSFabricRunItemStatus
 
 
 class MSFabricRunItemTrigger(BaseTrigger):
@@ -35,7 +35,7 @@ class MSFabricRunItemTrigger(BaseTrigger):
     def serialize(self):
         """Serialize the MSFabricRunItemTrigger instance."""
         return (
-            "airflow.providers.microsoft.fabric.triggers.fabric.MSFabricRunItemTrigger",
+            "airflow.providers.microsoft.fabric.triggers.run_item.MSFabricRunItemTrigger",
             {
                 "fabric_conn_id": self.fabric_conn_id,
                 "item_run_id": self.item_run_id,

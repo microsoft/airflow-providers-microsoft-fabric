@@ -6,22 +6,22 @@ def get_provider_info():
         "hooks": [
             {
                 "integration-name": "microsoft-fabric", 
-                "python-modules": ["airflow.providers.microsoft.fabric.hooks.fabric"]
+                "python-modules": ["airflow.providers.microsoft.fabric.hooks.run_item"]
             }
         ],
         "operators": [
             {
                 "integration-name": "microsoft-fabric",
-                "python-modules": ["airflow.providers.microsoft.fabric.operators.fabric"],
+                "python-modules": ["airflow.providers.microsoft.fabric.operators.run_item"],
             }
         ],
         "operator-extra-links": [
-            "airflow.providers.microsoft.fabric.operators.fabric.MSFabricRunItemLink"
+            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricRunItemLink"
         ],
         "connection-types": [
             {
                 "connection-type": "microsoft-fabric",
-                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.fabric.MSFabricHook",
+                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.run_item.MSFabricHook",
             }
         ],
     }

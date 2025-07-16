@@ -23,12 +23,12 @@ from typing import TYPE_CHECKING, Sequence
 
 from airflow.configuration import conf
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
-from airflow.providers.microsoft.fabric.hooks.fabric import (
+from airflow.providers.microsoft.fabric.hooks.run_item import (
     MSFabricHook,
     MSFabricRunItemException,
     MSFabricRunItemStatus,
 )
-from airflow.providers.microsoft.fabric.triggers.fabric import MSFabricRunItemTrigger
+from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
 
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey

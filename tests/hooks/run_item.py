@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from airflow.models.connection import Connection
-from airflow.providers.microsoft.fabric.hooks.fabric import (
+from airflow.providers.microsoft.fabric.hooks.run_item import (
     MSFabricAsyncHook,
     MSFabricHook,
     MSFabricRunItemException,
@@ -23,7 +23,7 @@ ITEM_RUN_ID = "item_run_id"
 BASE_URL = "https://api.fabric.microsoft.com"
 API_VERSION = "v1"
 JOB_TYPE = "RunNotebook"
-MODULE = "airflow.providers.microsoft.fabric.hooks.fabric"
+MODULE = "airflow.providers.microsoft.fabric.hooks.run_item"
 
 
 @pytest.fixture(autouse=True)
@@ -90,7 +90,7 @@ def test_get_item_run_details_failure(fabric_hook, get_token, mocker):
     mocker.patch.object(fabric_hook, "get_headers", return_value={"Authorization": "Bearer access_token"})
     
     # Mock the retry decorator to avoid retries in tests // copilot fix
-    with patch('airflow.providers.microsoft.fabric.hooks.fabric.retry', side_effect=lambda **kwargs: lambda f: f):
+    with patch('airflow.providers.microsoft.fabric.hooks.run_item.retry', side_effect=lambda **kwargs: lambda f: f):
         with pytest.raises(requests.exceptions.HTTPError):
             fabric_hook.get_item_run_details(location=ITEM_RUN_LOCATION)
 

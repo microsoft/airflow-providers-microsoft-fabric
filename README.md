@@ -78,7 +78,7 @@ Ready to give it a spin? Check out the sample DAG code below:
 from __future__ import annotations
 
 from airflow import DAG
-from airflow.providers.microsoft.fabric.operators.fabric import MSFabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunItemOperator
 from airflow.utils.dates import days_ago
 
 default_args = {

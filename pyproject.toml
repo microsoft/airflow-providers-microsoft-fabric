@@ -46,7 +46,7 @@ namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py", "fabric.py"]
+python_files = ["test_*.py", "*test.py", "run_item.py"]
 python_functions = ["test_*"]
 addopts = "-v"
 asyncio_mode = "auto"

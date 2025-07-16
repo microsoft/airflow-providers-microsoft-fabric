@@ -118,7 +118,7 @@ class MSFabricHook(BaseHook):
         access_token = self.cached_access_token.get("access_token")
         expiry_time = self.cached_access_token.get("expiry_time")
 
-        if access_token and expiry_time > time.time():
+        if access_token and expiry_time and expiry_time > time.time():
             self.log.info(f"Returning cached access token for Microsoft Fabric. RefreshToken: '{access_token[:5]}...', Expiry: '{expiry_time}'")
             return str(access_token)
 

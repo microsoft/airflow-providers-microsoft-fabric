@@ -1,6 +1,6 @@
 from airflow import DAG
 from datetime import datetime
-from airflow.providers.microsoft.fabric.operators.fabric import MSFabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunItemOperator
 
 with DAG(
   dag_id="test_fabric_notebook_run",

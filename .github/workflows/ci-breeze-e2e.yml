@@ -153,7 +153,7 @@ jobs:
         docker exec airflow_ci airflow providers list | grep microsoft 
 
         echo "=== SETTING FABRIC CONNECTION IN AIRFLOW ==="
-        docker exec airflow_ci airflow connections add 'fabric_integration' \
+        docker exec airflow_ci airflow connections add 'fabric-integration' \
           --conn-type 'microsoft-fabric' \
           --conn-extra '{
             "endpoint": "${{ env.FABRIC_API_ENDPOINT }}",
@@ -163,7 +163,7 @@ jobs:
           }'
 
         echo "=== CHECK CONNECTION IS AVAILABLE ==="
-        docker exec airflow_ci airflow connections get 'fabric_integration'
+        docker exec airflow_ci airflow connections get 'fabric-integration'
 
     - name: Run DAG and wait for completion
       uses: ./.github/actions/run-airflow-dag

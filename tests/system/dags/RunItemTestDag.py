@@ -1,5 +1,4 @@
 from airflow import DAG
-from datetime import datetime
 from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunItemOperator
 
 with DAG(
@@ -7,34 +6,48 @@ with DAG(
   catchup=False,
 ) as dag:
 
-  # Assumes the workspace_id and item_id are already set in the Airflow connection
-  run_fabric_item_1 = MSFabricRunItemOperator(
-    task_id="run_fabric_item_1",
-    fabric_conn_id="fabric_integration",
-    workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-    item_id="38579073-b94d-4b88-86e5-898bc15a2542",
+# Notebook
+  runNotebook1 = MSFabricRunItemOperator(
+    task_id="runNotebookTask1_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
     job_type="RunNotebook",
-    wait_for_termination=True,
-    deferrable=True,
+    timeout=60 * 10, #10 minutes
+    #job_params={"sleep_minutes": "5"}, not yet supported by the API
+    deferrable=True
   )
 
-  run_fabric_item_2 = MSFabricRunItemOperator(
-    task_id="run_fabric_item_2",
-    fabric_conn_id="fabric_integration",
-    workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-    item_id="38579073-b94d-4b88-86e5-898bc15a2542",
+  runNotebook2 = MSFabricRunItemOperator(
+    task_id="runNotebookTask2_sync",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
     job_type="RunNotebook",
-    wait_for_termination=True,
+    timeout=60 * 10, #10 minutes
+    deferrable=False, 
+  )
+
+  # Pipeline
+  runPipeline1 = MSFabricRunItemOperator(
+    task_id="runPipelineTask1_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
+    job_type="Pipeline",
+    timeout=60 * 10, #10 minutes
+    # deferrable=True, # default value
+  )
+
+  runPipeline2 = MSFabricRunItemOperator(
+    task_id="runPipelineTask2_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
+    job_type="Pipeline",
+    timeout=60 * 10, #10 minutes
     deferrable=False,
   )
 
-  run_fabric_item_3 = MSFabricRunItemOperator(
-  task_id="run_fabric_item_3",
-  fabric_conn_id="fabric_integration",
-  workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-  item_id="38579073-b94d-4b88-86e5-898bc15a2542",
-  job_type="RunNotebook",
-  wait_for_termination=False)
-
   # Tasks will run in parallel by default since there are no dependencies defined
-  [run_fabric_item_1, run_fabric_item_2, run_fabric_item_3]
+  [runNotebook1, runNotebook2, runPipeline1, runPipeline2]

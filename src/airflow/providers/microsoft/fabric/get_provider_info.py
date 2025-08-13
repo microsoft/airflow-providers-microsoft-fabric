@@ -1,13 +1,10 @@
 def get_provider_info():
     return {
         "package-name": "apache-airflow-providers-microsoft-fabric",
-        "name": "Provider for integrating with Microsoft Fabric services",
-        "description": "Adds easy connectivity to Microsoft Fabric",
+        "name": "Microsoft Fabric",
+        "description": "Provider for running and monitoring Microsoft Fabric jobs using service principal authentication.",
+        
         "hooks": [
-            {
-                "integration-name": "microsoft-fabric", 
-                "python-modules": ["airflow.providers.microsoft.fabric.hooks.run_item"]
-            }
         ],
         "operators": [
             {
@@ -16,12 +13,18 @@ def get_provider_info():
             }
         ],
         "operator-extra-links": [
-            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricRunItemLink"
+            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricRunItemLink",
         ],
         "connection-types": [
             {
                 "connection-type": "microsoft-fabric",
-                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.run_item.MSFabricHook",
+                "hook-class-name": "airflow.providers.microsoft.fabric.hooks.rest_connection.MSFabricRestConnection",
+            }
+        ],
+        "triggers": [
+            {
+                "integration-name": "microsoft-fabric",
+                "python-modules": ["airflow.providers.microsoft.fabric.triggers.run_item"],
             }
         ],
     }

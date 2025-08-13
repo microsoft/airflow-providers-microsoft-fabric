@@ -1,39 +1,34 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
 from __future__ import annotations
 
-import time
-import warnings
-from functools import cached_property
+import asyncio
 from typing import TYPE_CHECKING, Sequence
+from functools import cached_property
 
 from airflow.configuration import conf
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
 from airflow.providers.microsoft.fabric.hooks.run_item import (
-    MSFabricHook,
+    MSFabricRunItemHook,
     MSFabricRunItemException,
-    MSFabricRunItemStatus,
 )
 from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
 
 if TYPE_CHECKING:
+    from airflow.models.taskinstance import TaskInstance
     from airflow.models.taskinstancekey import TaskInstanceKey
     from airflow.utils.context import Context
 
+
+# XCom key constants
+class XComKeys:
+    """Constants for XCom keys used by the MSFabricRunItemOperator."""
+    WORKSPACE_ID = "workspace_id"
+    ITEM_ID = "item_id"
+    RUN_ID = "run_id"
+    LOCATION = "location"
+    ITEM_NAME = "item_name"
+    RUN_STATUS = "run_status"
+    RUN_DETAILS = "run_details"
+    ERROR_MESSAGE = "error_message"
 
 class MSFabricRunItemLink(BaseOperatorLink):
     """
@@ -42,63 +37,74 @@ class MSFabricRunItemLink(BaseOperatorLink):
     :param run_id: The item run ID.
     :type run_id: str
     """
+    @property
+    def name(self) -> str:
+        return "Monitor Item Run"
 
-    name = "Monitor Item Run"
+    def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey) -> str:
+        run_id = XCom.get_value(key=XComKeys.RUN_ID, ti_key=ti_key)
+        item_name = XCom.get_value(key=XComKeys.ITEM_NAME, ti_key=ti_key)
 
-    def get_link(
-        self,
-        operator: BaseOperator,
-        *,
-        ti_key: TaskInstanceKey,
-    ):
-        self.item_run_id = XCom.get_value(key="run_id", ti_key=ti_key)
-        self.workspace_id = operator.workspace_id
-        self.item_id = operator.item_id
-        self.base_url = "https://app.fabric.microsoft.com"
-        conn_id = operator.fabric_conn_id  # type: ignore
-        self.hook = MSFabricHook(fabric_conn_id=conn_id)
+        workspace_id = getattr(operator, "workspace_id", None)
+        item_id = getattr(operator, "item_id", None)
+        job_type = getattr(operator, "job_type", None)
 
-        item_details = self.hook.get_item_details(self.workspace_id, self.item_id)
-        self.item_name = item_details.get("displayName")
-        url = None
+        base_url = "https://app.fabric.microsoft.com"
 
-        if operator.job_type == "RunNotebook":
-            url = f"{self.base_url}/groups/{self.workspace_id}/synapsenotebooks/{self.item_id}?experience=data-factory"
+        if not run_id or not workspace_id or not item_id:
+            return ""
 
-        elif operator.job_type == "Pipeline":
-            url = f"{self.base_url}/workloads/data-pipeline/monitoring/workspaces/{self.workspace_id}/pipelines/{self.item_name}/{self.item_run_id}?experience=data-factory"
+        if job_type == "RunNotebook":
+            return f"{base_url}/groups/{workspace_id}/synapsenotebooks/{item_id}?experience=data-factory"
 
-        return url
+        elif job_type == "Pipeline" and item_name:
+            return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}?experience=data-factory"
+
+        return ""
 
 
 class MSFabricRunItemOperator(BaseOperator):
     """Operator to run a Fabric item (e.g. a notebook) in a workspace."""
 
     template_fields: Sequence[str] = (
+        "fabric_conn_id",
         "workspace_id",
         "item_id",
         "job_type",
-        "fabric_conn_id",
+        "timeout",
+        "check_interval",
+        "deferrable",
         "job_params",
+        "api_host",
+        "scope",
     )
     template_fields_renderers = {"parameters": "json"}
 
     operator_extra_links = (MSFabricRunItemLink(),)
 
+    @cached_property
+    def hook(self) -> MSFabricRunItemHook:
+        """Create and return the FabricHook (cached)."""
+        return MSFabricRunItemHook(
+            fabric_conn_id=self.fabric_conn_id, 
+            workspace_id=self.workspace_id,
+            api_host=self.api_host,
+            scope=self.scope)
+
     def __init__(
         self,
         *,
+        fabric_conn_id: str,
         workspace_id: str,
         item_id: str,
-        fabric_conn_id: str,
         job_type: str,
-        wait_for_termination: bool = True,
-        timeout: int = 60 * 60 * 24 * 7,
+        timeout: int = 60 * 60 * 1,  # 1 hour default timeout
         check_interval: int = 5,
-        max_retries: int = 5,
-        retry_delay: int = 1,
-        deferrable: bool = conf.getboolean("operators", "default_deferrable", fallback=False),
-        job_params: dict = None,
+        # Backward compatibility - individual retry parameters
+        deferrable: bool = True,
+        job_params: dict | None = None,
+        api_host: str = "https://api.fabric.microsoft.com",
+        scope: str = "https://api.fabric.microsoft.com/.default",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -106,96 +112,210 @@ class MSFabricRunItemOperator(BaseOperator):
         self.workspace_id = workspace_id
         self.item_id = item_id
         self.job_type = job_type
-        self.wait_for_termination = wait_for_termination
         self.timeout = timeout
         self.check_interval = check_interval
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
         self.deferrable = deferrable
-        self.job_params = job_params
-
-    @cached_property
-    def hook(self) -> MSFabricHook:
-        """Create and return the FabricHook (cached)."""
-        return MSFabricHook(fabric_conn_id=self.fabric_conn_id, max_retries=self.max_retries, retry_delay=self.retry_delay)
-
+        self.job_params = job_params or {}
+        self.api_host = api_host
+        self.scope = scope
+        
     def execute(self, context: Context) -> None:
-        # Execute the item run
-        self.location = self.hook.run_fabric_item(
-            workspace_id=self.workspace_id, item_id=self.item_id, job_type=self.job_type, job_params=self.job_params
-        )
-        item_run_details = self.hook.get_item_run_details(self.location)
-
-        self.item_run_status = item_run_details["status"]
-        self.item_run_id = item_run_details["id"]
-
-        # Push the run id to XCom regardless of what happen during execution
-        context["ti"].xcom_push(key="run_id", value=self.item_run_id)
-        context["ti"].xcom_push(key="location", value=self.location)
-
-        if self.wait_for_termination:
-            if self.deferrable is False:
-                self.log.info("Waiting for item run %s to terminate.", self.item_run_id)
-
-                if self.hook.wait_for_item_run_status(
-                    self.location,
-                    MSFabricRunItemStatus.COMPLETED,
-                    check_interval=self.check_interval,
-                    timeout=self.timeout,
-                ):
-                    self.log.info("Item run %s has completed successfully.", self.item_run_id)
-                else:
-                    raise MSFabricRunItemException(
-                        f"Item run {self.item_run_id} has failed with status {self.item_run_status}."
-                    )
-            else:
-                end_time = time.monotonic() + self.timeout
-
-                if self.item_run_status not in MSFabricRunItemStatus.TERMINAL_STATUSES:
-                    self.log.info("Deferring the task to wait for item run to complete.")
-
-                    self.defer(
-                        trigger=MSFabricRunItemTrigger(
-                            fabric_conn_id=self.fabric_conn_id,
-                            item_run_id=self.item_run_id,
-                            wait_for_termination=self.wait_for_termination,
-                            workspace_id=self.workspace_id,
-                            item_id=self.item_id,
-                            job_type=self.job_type,
-                            check_interval=self.check_interval,
-                            end_time=end_time,
-                        ),
-                        method_name="execute_complete",
-                    )
-                elif self.item_run_status == MSFabricRunItemStatus.COMPLETED:
-                    self.log.info("Item run %s has completed successfully.", self.item_run_id)
-                elif self.item_run_status in MSFabricRunItemStatus.FAILURE_STATES:
-                    raise MSFabricRunItemException(
-                        f"Item run {self.item_run_id} has failed with status {self.item_run_status}."
-                    )
-
-            # Update the status of Item run in Xcom
-            item_run_details = self.hook.get_item_run_details(self.location)
-            self.item_run_status = item_run_details["status"]
-            context["ti"].xcom_push(key="run_status", value=self.item_run_status)
+        """Execute the Fabric item run."""
+        self.log.info("Starting Fabric item run - workspace_id: %s, job_type: %s, item_id: %s", 
+                      self.workspace_id, self.job_type, self.item_id)
+        
+        if self.deferrable:
+            # For deferrable mode, run each step separately (triggers handle their own connections)
+            asyncio.run(self._execute_core(context, deferrable=True))
         else:
-            if self.deferrable is True:
-                warnings.warn(
-                    "Argument `wait_for_termination` is False and `deferrable` is True , hence "
-                    "`deferrable` parameter doesn't have any effect",
-                    UserWarning,
-                    stacklevel=2,
+            # For synchronous mode, run everything in a single event loop
+            asyncio.run(self._execute_core(context, deferrable=False))
+
+    async def _execute_core(self, context: Context, deferrable: bool) -> None:
+        """Core execution logic that works for both deferrable and synchronous modes."""
+        item_run = None
+
+        try:
+            # Initialize the run using the hook and get ItemRun object
+            item_run = await self.hook.initialize_run(
+                item_id=self.item_id,
+                job_type=self.job_type,
+                job_params=self.job_params
+            )
+                       
+            self.log.info(
+                "Run initialized - item_name: %s, run_id: %s, location: %s, start_time: %s, start_polling_time: %s, timeout_time: %s",
+                item_run.item_name, item_run.run_id, item_run.location_url, item_run.start_time, item_run.start_polling_time, item_run.timeout_time
+            )
+
+            # Store item name and run_id in XCom
+            ti = context.get("ti")
+            if ti:
+                ti.xcom_push(key=XComKeys.RUN_ID, value=item_run.run_id)
+                ti.xcom_push(key=XComKeys.ITEM_NAME, value=item_run.item_name)
+
+            if deferrable:
+                self.log.info("Deferring the task to wait for item run to complete.")
+
+                self.defer(
+                    trigger=MSFabricRunItemTrigger(item_run=item_run),
+                    method_name="execute_complete",
                 )
-        return
+            else:
+                # Wait for completion synchronously in the same event loop
+                self.log.warning("Waiting for task completion synchronously, in operator. Discouraged for long running tasks as workers may restart.")
+                event_data, status_payload = await self.hook.wait_for_completion(item_run)
+
+                # Handle completion
+                self._handle_completion(
+                    context=context,
+                    event_data=event_data,
+                    status_payload=status_payload
+                )
+
+        except MSFabricRunItemException as e:
+            # Handle Fabric exceptions directly
+            error_event_data = {
+                "status": "error",
+                "run_id": item_run.run_id if item_run else None,
+                "location": item_run.location_url if item_run else None,
+                "failed": True,
+                "failed_reason": str(e)
+            }
+            self._handle_completion(context=context, event_data=error_event_data)
+            
+        except Exception as e:
+            # Handle unexpected exceptions
+            error_event_data = {
+                "status": "error", 
+                "run_id": item_run.run_id if item_run else None,
+                "location": item_run.location_url if item_run else None,
+                "failed": True,
+                "failed_reason": f"Unexpected error: {str(e)}"
+            }
+            self._handle_completion(context=context, event_data=error_event_data)
+            
+        finally:
+            # Clean up resources for synchronous execution
+            if not deferrable:
+                try:
+                    await self.hook.close()
+                except Exception as e:
+                    self.log.warning("Failed to close hook connections: %s", str(e))
 
     def execute_complete(self, context: Context, event) -> None:
-        """
-        Return immediately - callback for when the trigger fires.
+        """Handle completion from trigger event by parsing and delegating to core completion logic."""
+        if not event:
+            return
+            
+        # The event from trigger should already be in the correct format
+        # Extract status_payload if provided by trigger
+        status_payload = event.get("status_payload")
+        
+        # Delegate to the core completion handler
+        self._handle_completion(
+            context=context,
+            event_data=event,
+            status_payload=status_payload
+        )
 
-        Relies on trigger to throw an exception, otherwise it assumes execution was successful.
+    def _handle_completion(
+        self, 
+        context: Context,
+        event_data: dict,
+        status_payload: dict | None = None
+    ) -> None:
         """
-        if event:
-            self.log.info(event["message"])
-            context["ti"].xcom_push(key="run_status", value=event["item_run_status"])
-            if event["status"] == "error":
-                raise MSFabricRunItemException(str(event["message"]))
+        Core completion logic shared between deferrable and synchronous execution.
+        Handles timeouts, failures, and success scenarios with proper XCom population.
+        """
+        # Fetch timeout, failed and failed_message from event_data
+        timeout = event_data.get("timeout") == "true" or event_data.get("timeout") is True
+        failed = event_data.get("failed") == "true" or event_data.get("failed") is True
+        failed_reason = event_data.get("failed_reason")
+        
+        # Fetch status and check if it means success
+        status = event_data.get("status")
+        is_success = (
+            status is not None and self.hook.is_run_successful(status) and
+            not timeout and
+            not failed and
+            status not in ("timeout", "error")
+        )
+
+        # Create appropriate log message
+        run_id = event_data.get("run_id")
+        location = event_data.get("location")
+        
+        if timeout:
+            message = f"Timeout waiting for run {run_id} to complete"
+            self.log.error(message)
+        elif failed:
+            message = f"Run {run_id} failed: {failed_reason}"
+            self.log.error(message)
+        elif status == "error":
+            message = f"Run {run_id} encountered an error"
+            self.log.error(message)
+        else:
+            message = f"Run {run_id} completed with status {status}"
+            self.log.info(message)
+        
+        # If task is successful and was deferred, fetch the run details
+        # (status_payload will be None for deferred operations)
+        if is_success and status_payload is None and location:
+            try:
+                self.log.info("Fetching run details for successful deferred operation - run_id: %s", run_id)
+                status_payload = asyncio.run(self.hook.get_run_status(location))
+            except Exception as e:
+                self.log.warning("Failed to fetch run details for deferred completion: %s", str(e))
+                # Continue without status_payload - populate_xcom will handle gracefully
+    
+        # Populate XCom
+        ti = context.get("ti")
+        self._populate_xcom(
+            ti=ti,
+            success=is_success,
+            event_data=event_data,
+            status_payload=status_payload
+        )
+        
+        # Raise exception in case of failures
+        if not is_success:
+            error_msg = failed_reason or message
+            self.log.info("Handle_Completion: An error occurred while waiting for the task to complete: %s", message)
+            if ti is not None:
+                ti.xcom_push(key=XComKeys.ERROR_MESSAGE, value=error_msg)
+            raise MSFabricRunItemException(error_msg)
+
+    def _populate_xcom(
+        self,
+        ti: TaskInstance | None,
+        success: bool,
+        event_data: dict,
+        status_payload: dict | None = None
+    ) -> None:
+        """
+        Populate task instance XCom with run information.
+        Does not fetch any details - expects status_payload to be provided if available.
+        """
+        if ti is None:
+            return
+        
+        # Extract basic info from event data
+        status = event_data.get("status")
+        run_id = event_data.get("run_id")
+        location = event_data.get("location")
+        
+        # Always push basic information
+        ti.xcom_push(key=XComKeys.WORKSPACE_ID, value=self.workspace_id)
+        ti.xcom_push(key=XComKeys.ITEM_ID, value=self.item_id)
+        if run_id:
+            ti.xcom_push(key=XComKeys.RUN_ID, value=run_id)
+        if status:
+            ti.xcom_push(key=XComKeys.RUN_STATUS, value=status)
+        if location:
+            ti.xcom_push(key=XComKeys.LOCATION, value=location)
+        if status_payload:
+            ti.xcom_push(key=XComKeys.RUN_DETAILS, value=status_payload)
+
+        self.log.info("Run details stored in XCom - run_id: %s, success: %s, status: %s, details: %s", run_id, success, status, status_payload)

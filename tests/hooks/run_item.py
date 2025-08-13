@@ -9,8 +9,7 @@ import requests
 
 from airflow.models.connection import Connection
 from airflow.providers.microsoft.fabric.hooks.run_item import (
-    MSFabricAsyncHook,
-    MSFabricHook,
+    MSFabricRunItemHook,
     MSFabricRunItemException,
     MSFabricRunItemStatus,
 )
@@ -45,7 +44,11 @@ def setup_connections(create_mock_connection):
 
 @pytest.fixture
 def fabric_hook():
-    client = MSFabricHook(fabric_conn_id=DEFAULT_FABRIC_CONNECTION)
+    client = MSFabricRunItemHook(
+        fabric_conn_id=DEFAULT_FABRIC_CONNECTION,
+        workspace_id=WORKSPACE_ID,
+        api_host=BASE_URL,
+    )
     return client
 
 
@@ -100,7 +103,7 @@ def test_get_item_run_details_failure(fabric_hook, get_token, mocker):
     )
 
 
-@patch(f"{MODULE}.MSFabricHook._send_request")
+@patch(f"{MODULE}.MSFabricRunItemHook._send_request")
 def test_get_item_details(mock_send_request, fabric_hook, get_token):
     fabric_hook.get_item_details(WORKSPACE_ID, ITEM_ID)
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}"
@@ -109,7 +112,7 @@ def test_get_item_details(mock_send_request, fabric_hook, get_token):
     )
 
 
-@patch(f"{MODULE}.MSFabricHook._send_request")
+@patch(f"{MODULE}.MSFabricRunItemHook._send_request")
 def test_run_fabric_item(mock_send_request, fabric_hook, get_token):
     fabric_hook.run_fabric_item(WORKSPACE_ID, ITEM_ID, JOB_TYPE, job_params=None)
     expected_url = f"{BASE_URL}/{API_VERSION}/workspaces/{WORKSPACE_ID}/items/{ITEM_ID}/jobs/instances?jobType={JOB_TYPE}"
@@ -142,7 +145,7 @@ def test_wait_for_item_run_status(fabric_hook, item_run_status, expected_status,
         "target_status": expected_status,
     }
 
-    with patch.object(MSFabricHook, "get_item_run_details") as mock_item_run:
+    with patch.object(MSFabricRunItemHook, "get_item_run_details") as mock_item_run:
         mock_item_run.return_value = {"status": item_run_status}
 
         if expected_result != "timeout":
@@ -151,14 +154,14 @@ def test_wait_for_item_run_status(fabric_hook, item_run_status, expected_status,
             with pytest.raises(MSFabricRunItemException):
                 fabric_hook.wait_for_item_run_status(**config)
 
-@patch(f"{MODULE}.MSFabricHook._send_request")
-def test_send_request(mock_send_request, fabric_hook: MSFabricHook):
+@patch(f"{MODULE}.MSFabricRunItemHook._send_request")
+def test_send_request(mock_send_request, fabric_hook: MSFabricRunItemHook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"
     fabric_hook._send_request(request_type, url)
     mock_send_request.assert_called_once_with(request_type, url)
 
-@patch(f"{MODULE}.MSFabricHook._send_request")
+@patch(f"{MODULE}.MSFabricRunItemHook._send_request")
 def test_send_request_with_custom_headers(mock_send_request, get_token, fabric_hook):
     request_type = "GET"
     url = "https://api.fabric.microsoft.com/test"

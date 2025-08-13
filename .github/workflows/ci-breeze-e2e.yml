@@ -11,8 +11,7 @@ env:
   FABRIC_CLIENT_ID: 9abcc0ae-393f-42ae-b46e-8f4dff217fd9
   # Visit github secret (CI_FABRIC_AUTH_SECRET) information: https://github.com/microsoft/airflow-providers-microsoft-fabric/settings/secrets/actions
   # TODO: Workspace and ItemID are still hardcoded in the DAG file
-  FABRIC_WORKSPACE_ID: 988a1272-9da5-4936-be68-39e9b62d85ef
-  FABRIC_ITEM_ID: 38579073-b94d-4b88-86e5-898bc15a2542
+  FABRIC_WORKSPACE_ID: cb9c7d63-3263-4996-9014-482eb8788007
   AIRFLOW_HOME: /home/airflow
     # if not specified should fallback to https://api.fabric.microsoft.com
   FABRIC_API_ENDPOINT:

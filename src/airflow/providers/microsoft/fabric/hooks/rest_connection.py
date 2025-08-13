@@ -99,7 +99,7 @@ class MSFabricRestConnection(BaseHook):
             self.log.error("Connection '%s' has no extra configuration", conn_id)
             raise AirflowException(
                 f"Connection '{conn_id}' missing extra configuration. "
-                "Please configure tenant_id, client_id, and client_secret."
+                "Please configure tenantId, clientId, and clientSecret."
             )
 
         available_params = list(self.conn.extra_dejson.keys())
@@ -181,9 +181,9 @@ class MSFabricRestConnection(BaseHook):
     @classmethod
     def get_connection_form_widgets(cls) -> dict:
         return {
-            "tenant_id": StringField(str(gettext("Tenant ID")), widget=BS3TextFieldWidget()),
-            "client_id": StringField(str(gettext("Client ID")), widget=BS3TextFieldWidget()),
-            "client_secret": PasswordField(str(gettext("Client Secret")), widget=BS3PasswordFieldWidget()),
+            "tenantId": StringField(str(gettext("Tenant ID")), widget=BS3TextFieldWidget()),
+            "clientId": StringField(str(gettext("Client ID")), widget=BS3TextFieldWidget()),
+            "clientSecret": PasswordField(str(gettext("Client Secret")), widget=BS3PasswordFieldWidget()),
         }
 
     @classmethod

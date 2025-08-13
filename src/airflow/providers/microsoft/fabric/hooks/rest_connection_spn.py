@@ -34,9 +34,9 @@ class MSFabricRestConnectionSPN:
         self.log.debug("Available connection parameters: %s", available_params)
         
         # Validate and extract required parameters
-        self.tenant_id = self._validate_guid(self.extras.get("tenant_id"), "tenant_id")
-        self.client_id = self._validate_guid(self.extras.get("client_id"), "client_id")
-        self.client_secret = self._validate_non_empty(self.extras.get("client_secret"), "client_secret")
+        self.tenant_id = self._validate_guid(self.extras.get("tenantId"), "tenantId")
+        self.client_id = self._validate_guid(self.extras.get("clientId"), "clientId")
+        self.client_secret = self._validate_non_empty(self.extras.get("clientSecret"), "clientSecret")
         
         # Log connection configuration (mask sensitive data)
         self.log.info(

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, Tuple
-import logging
+from typing import Optional, Mapping, Dict, Any, Tuple
 
 import aiohttp
 from aiohttp import ClientResponseError
@@ -104,9 +104,14 @@ class HttpClient:
             # Return successful response (unconsumed)
             return resp
 
-        # Apply tenacity retry
-        retry_wrapped = tenacity_retry(_attempt)
-        return await retry_wrapped()
+        # Apply tenacity retry using AsyncRetrying iteration pattern
+        async for attempt in tenacity_retry:
+            with attempt:
+                result = await _attempt()
+                return result
+        
+        # This should never be reached, but satisfies type checker
+        raise AirflowException("All retry attempts exhausted")
 
     async def make_request_json(
         self,
@@ -147,13 +152,12 @@ class HttpClient:
             req_id = response_headers.get("x-ms-request-id") or response_headers.get("x-request-id")
 
             # Log detailed request/response at debug level with redaction
-            if self.log.isEnabledFor(logging.DEBUG):
-                self.log.debug(self._redactor.preview_response(
+            if self.log.isEnabledFor(logging.INFO):
+                self.log.info(self._redactor.preview_response(
                     method, url, status_code, response_headers, body_text, ctype, req_id
                 ))
             else:
                 self.log.info("HTTP Request[%s]: %s - Status: %s, Request Id: %s",method, url, status_code, req_id)
-
 
             # Parse JSON with graceful handling of non-JSON responses
             body = {}  # Default to empty dict
@@ -174,13 +178,7 @@ class HttpClient:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Create or reuse a shared aiohttp session."""
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                connector = aiohttp.TCPConnector(
-                    limit=3, # max 3 connections
-                    limit_per_host=0,
-                    keepalive_timeout=5.0, # keep connection open for 5 seconds, don't keep it alive indefinitely
-                )
-            )
+            self._session = aiohttp.ClientSession()
         return self._session
 
     async def close_session(self):

@@ -13,7 +13,7 @@ def get_provider_info():
             }
         ],
         "operator-extra-links": [
-            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricRunItemLink",
+            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricItemLink",
         ],
         "connection-types": [
             {

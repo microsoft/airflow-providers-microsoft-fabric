@@ -1,11 +1,11 @@
 import asyncio
 import aiohttp
 import logging
-from typing import Mapping, Tuple, Optional
+from typing import Mapping, Optional
 from airflow.hooks.base import BaseHook
 from airflow.models.connection import Connection
 from airflow.exceptions import AirflowException, AirflowNotFoundException
-from tenacity import Retrying, retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt
+from tenacity import AsyncRetrying, Retrying, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 from airflow.providers.microsoft.fabric.hooks.http_client import HttpClient
 from airflow.providers.microsoft.fabric.hooks.rest_connection_spn import MSFabricRestConnectionSPN
@@ -35,34 +35,28 @@ class MSFabricRestConnection(BaseHook):
     def __init__(
         self, 
         conn_id: str, 
-        tenacity_retry: Optional[Retrying] = None,
-        scope: str = "https://api.fabric.microsoft.com/.default",
+        tenacity_retry: Optional[AsyncRetrying] = None,
     ):
         self.conn_id = conn_id
-        self.scope = scope
         self.http_client = HttpClient(log=logging.getLogger(__name__))
 
         if tenacity_retry is None:
-            # Create default retry configuration if not provided
-            RETRYABLE_EXCEPTIONS = (
-                aiohttp.ClientError,
-                asyncio.TimeoutError,
-            )
-            self.tenacity_retry = retry(
+            RETRYABLE_EXCEPTIONS = (aiohttp.ClientError, asyncio.TimeoutError)
+            self.tenacity_retry = AsyncRetrying(
                 retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
-                wait=wait_random_exponential(multiplier=1, max=16),  # 1s, 2s, 4s... up to 16s
-                stop=stop_after_attempt(5),  # max 5 attempts
+                wait=wait_random_exponential(multiplier=1, max=16),
+                stop=stop_after_attempt(5),
                 reraise=True,
             )
         else:
             self.tenacity_retry = tenacity_retry
         
-        self.log.info(
-            "Initializing MS Fabric REST connection for conn_id: %s, scope: %s, retry_config: %s",
-            conn_id, scope, tenacity_retry
+        self.log.debug(
+            "Initializing MS Fabric REST connection for conn_id: %s, retry_config: %s", 
+            conn_id,  tenacity_retry
         )
 
-        self._initialize_authentication(conn_id, scope)
+        self._initialize_authentication(conn_id)
 
     def _get_and_validate_connection(self, conn_id: str) -> Connection:
         """Get and validate connection exists."""
@@ -85,7 +79,7 @@ class MSFabricRestConnection(BaseHook):
             self.log.error("Unexpected error retrieving connection '%s': %s", conn_id, str(e))
             raise AirflowException(f"Failed to retrieve connection '{conn_id}': {str(e)}")
 
-    def _initialize_authentication(self, conn_id: str, scope: str) -> None:
+    def _initialize_authentication(self, conn_id: str) -> None:
         """
         Initialize the authentication handler based on connection configuration.
         
@@ -122,30 +116,30 @@ class MSFabricRestConnection(BaseHook):
 
         # Initialize authentication handler
         try:
-            self.auth = auth_class(self.conn, scope)
+            self.auth = auth_class(self.conn)
             self.log.debug("Successfully initialized auth handler for connection '%s'", conn_id)
         except Exception as e:
             self.log.error("Failed to initialize auth handler for connection '%s': %s", conn_id, str(e))
             raise AirflowException(f"Failed to initialize authentication for connection '{conn_id}': {str(e)}")
 
-    def get_access_token(self) -> str:
+    def get_access_token(self, scope: str) -> str:
         """Get access token from the authentication handler."""
         self.log.debug("Requesting access token for connection '%s'", self.conn_id)
         try:
-            token = self.auth.get_access_token()
+            token = self.auth.get_access_token(scope)
             self.log.debug("Successfully obtained access token for connection '%s'", self.conn_id)
             return token
         except Exception as e:
             self.log.error("Failed to get access token for connection '%s': %s", self.conn_id, str(e))
             raise
 
-    def get_headers(self) -> Mapping[str, str]:
+    def get_headers(self, scope: str) -> Mapping[str, str]:
         """Get HTTP headers with authorization token."""
         return {
-            "Authorization": f"Bearer {self.get_access_token()}"
+            "Authorization": f"Bearer {self.get_access_token(scope)}"
         }
 
-    async def request(self, method: str, url: str, **kwargs) -> dict:
+    async def request(self, method: str, url: str, token_scope: str, **kwargs) -> dict:
         """
         Make an authenticated HTTP request with automatic retries using HttpClient.
 
@@ -158,7 +152,7 @@ class MSFabricRestConnection(BaseHook):
             raise AirflowException("HTTP client has been closed. Cannot make request.")
         
         # Get authentication headers
-        headers = self.get_headers()
+        headers = self.get_headers(token_scope)
                 
         # Delegate to HttpClient
         response_data = await self.http_client.make_request_json(
@@ -193,19 +187,3 @@ class MSFabricRestConnection(BaseHook):
             "relabeling": {},
             "placeholders": {},
         }
-
-    def test_connection(self) -> Tuple[bool, str]:
-        """Test the connection by attempting to get an access token."""
-        try:
-            self.log.info("Testing connection '%s'", self.conn_id)
-            token = self.get_access_token()
-
-            if not token or len(token) < 10:
-                return False, "Invalid access token received"
-
-            self.log.info("Connection test successful for '%s'", self.conn_id)
-            return True, f"Successfully obtained access token for connection '{self.conn_id}'"
-
-        except Exception as e:
-            self.log.error("Connection test failed for '%s': %s", self.conn_id, str(e))
-            return False, f"Connection test failed: {str(e)}"

@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from airflow.models.connection import Connection
-from airflow.providers.microsoft.fabric.hooks.run_item import (
+from airflow.providers.microsoft.fabric.hooks.run_item_hook import (
     MSFabricRunItemHook,
     MSFabricRunItemException,
     MSFabricRunItemStatus,

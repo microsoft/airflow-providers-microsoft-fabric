@@ -1,5 +1,6 @@
 from airflow import DAG
-from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.job_scheduler import MSFabricJobSchedulerOperator
+from airflow.providers.microsoft.fabric.operators.user_data_function import MSFabricUserDataFunctionOperator
 
 with DAG(
   dag_id="test_fabric_notebook_run",
@@ -7,7 +8,7 @@ with DAG(
 ) as dag:
 
 # Notebook
-  runNotebook1 = MSFabricRunItemOperator(
+  runNotebook1 = MSFabricJobSchedulerOperator(
     task_id="runNotebookTask1_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -18,7 +19,7 @@ with DAG(
     deferrable=True
   )
 
-  runNotebook2 = MSFabricRunItemOperator(
+  runNotebook2 = MSFabricJobSchedulerOperator(
     task_id="runNotebookTask2_sync",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -29,7 +30,7 @@ with DAG(
   )
 
   # Pipeline
-  runPipeline1 = MSFabricRunItemOperator(
+  runPipeline1 = MSFabricJobSchedulerOperator(
     task_id="runPipelineTask1_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -39,7 +40,7 @@ with DAG(
     # deferrable=True, # default value
   )
 
-  runPipeline2 = MSFabricRunItemOperator(
+  runPipeline2 = MSFabricJobSchedulerOperator(
     task_id="runPipelineTask2_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -48,6 +49,15 @@ with DAG(
     timeout=60 * 10, #10 minutes
     deferrable=False,
   )
+
+  runFunction = MSFabricUserDataFunctionOperator(
+    task_id="run_user_data_function",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="1cc9a6ff-862b-4c13-8685-750a2103c858",
+    item_name="MyFunc1",
+  )
+
 
   # Tasks will run in parallel by default since there are no dependencies defined
   [runNotebook1, runNotebook2, runPipeline1, runPipeline2]

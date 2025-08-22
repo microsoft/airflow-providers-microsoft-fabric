@@ -172,7 +172,7 @@ jobs:
         username:        ${{ env.USER_NAME }}
         password:        ${{ env.PASSWORD }}
         timeout_minutes: ${{ env.DAG_RUN_TIMEOUT_MIN }}
-        dag_id:          test_fabric_notebook_run
+        dag_id:          ci_pipeline_dag
 
     - name: Tar selected AIRFLOW_HOME subdirectories
       if: always()

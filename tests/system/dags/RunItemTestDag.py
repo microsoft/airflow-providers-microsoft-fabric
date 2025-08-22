@@ -4,19 +4,19 @@ from airflow.providers.microsoft.fabric.operators.user_data_function import MSFa
 from airflow.providers.microsoft.fabric.operators.semantic_model_refresh import MSFabricSemanticModelRefreshOperator
 
 with DAG(
-  dag_id="test_fabric_notebook_run",
+  dag_id="ci_pipeline_dag",
   catchup=False,
 ) as dag:
 
-  #Semantic Model
-  runSemanticModel1 = MSFabricSemanticModelRefreshOperator(
-    task_id="run_semantic_model_refresh",
-    fabric_conn_id="fabric-powerbi",
-    workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
-    item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
-    timeout=60 * 10, #10 minutes
-    deferrable=False,
-    api_host="https://dailyapi.fabric.microsoft.com")
+  # Semantic Model
+  # runSemanticModel1 = MSFabricSemanticModelRefreshOperator(
+  #   task_id="run_semantic_model_refresh",
+  #   fabric_conn_id="fabric-powerbi",
+  #   workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
+  #   item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
+  #   timeout=60 * 10, #10 minutes
+  #   deferrable=False,
+  #   api_host="https://dailyapi.fabric.microsoft.com")
 
   # Notebook
   runNotebook1 = MSFabricJobSchedulerOperator(
@@ -61,6 +61,7 @@ with DAG(
     deferrable=False,
   )
 
+  # User Function
   runFunction1 = MSFabricUserDataFunctionOperator(
     task_id="run_user_data_function1",
     fabric_conn_id="fabric-integration",
@@ -87,7 +88,3 @@ with DAG(
     item_name="MyNoParamFunc",
     parameters=dict()  # No parameters, will use default from the function definition)
   )
-
-
-  # Tasks will run in parallel by default since there are no dependencies defined
-  [runNotebook1, runNotebook2, runPipeline1, runPipeline2, runFunction1, runFunction2, runFunction3]

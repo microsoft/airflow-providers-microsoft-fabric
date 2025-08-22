@@ -5,7 +5,7 @@ from typing import Mapping, Optional
 from airflow.hooks.base import BaseHook
 from airflow.models.connection import Connection
 from airflow.exceptions import AirflowException, AirflowNotFoundException
-from tenacity import AsyncRetrying, Retrying, retry_if_exception_type, stop_after_attempt, wait_random_exponential
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 from airflow.providers.microsoft.fabric.hooks.http_client import HttpClient
 from airflow.providers.microsoft.fabric.hooks.rest_connection_spn import MSFabricRestConnectionSPN

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 from airflow.providers.microsoft.fabric.hooks.run_item_hook import MSFabricRunItemException
 from airflow.providers.microsoft.fabric.hooks.user_data_function_hook import UserDataFunctionConfig, MSFabricUserDataFunctionHook
 from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
@@ -24,11 +24,11 @@ class MSFabricUserDataFunctionOperator(MSFabricRunItemOperator):
         "workspace_id",
         "item_id",
         "item_name",
-        "job_params",
+        "parameters",
         "api_host",
         "scope",
     )
-    template_fields_renderers = {"job_params": "json"}  # optional
+    template_fields_renderers = {"parameters": "json"}  # optional
 
     operator_extra_links = (MSFabricItemLink(),)
 
@@ -39,9 +39,9 @@ class MSFabricUserDataFunctionOperator(MSFabricRunItemOperator):
         workspace_id: str,
         item_id: str,
         item_name: str,
-        job_params: dict | None = None,
+        parameters: Optional[dict] | None = None,
         api_host: str = "https://api.fabric.microsoft.com",
-        scope: str = "https://api.fabric.microsoft.com/.default",
+        scope: str = "https://analysis.windows.net/powerbi/api/.default",
         **kwargs,
     ) -> None:
         # Store raw values so Airflow can template them later
@@ -50,8 +50,8 @@ class MSFabricUserDataFunctionOperator(MSFabricRunItemOperator):
         self.item_id = item_id
         self.item_name = item_name
         self.job_type = "UserDataFunction"
-        self.timeout = 200
-        self.job_params = job_params or {}
+        self.timeout = 0 
+        self.parameters = parameters or {}
         self.api_host = api_host
         self.scope = scope
 
@@ -62,7 +62,7 @@ class MSFabricUserDataFunctionOperator(MSFabricRunItemOperator):
             poll_interval_seconds=0,
             api_host=self.api_host,
             api_scope=self.scope,
-            job_params=self.job_params,
+            parameters=self.parameters,
         )
         item = ItemDefinition(
             workspace_id=self.workspace_id,
@@ -91,7 +91,7 @@ class MSFabricUserDataFunctionOperator(MSFabricRunItemOperator):
             poll_interval_seconds=0,
             api_host=self.api_host,
             api_scope=self.scope,
-            job_params=self.job_params,
+            parameters=self.parameters,
         )
         self.item = ItemDefinition(
             workspace_id=self.workspace_id,

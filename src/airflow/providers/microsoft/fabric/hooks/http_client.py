@@ -52,23 +52,37 @@ class HttpClient:
         attempt_count = 0
 
         async def _attempt() -> aiohttp.ClientResponse:
+            
             nonlocal attempt_count
             attempt_count += 1
+            # Get retry information from tenacity_retry if available
+            max_attempts = getattr(tenacity_retry.stop, 'max_attempt_number', 'unknown')
 
             # Get session
             session = await self._get_session()
-            resp = await session.request(method.upper(), url, headers=headers, **kwargs)
-            req_id = resp.headers.get("x-ms-request-id") or resp.headers.get("x-request-id")
+            
+            # Add Prepare Common Headers
+            request_headers = headers or {}
+            request_headers = dict(request_headers)  # Make a copy to avoid modifying original            
+            if 'referer' not in (k.lower() for k in request_headers.keys()):
+                request_headers['Referer'] = "apache-airflow-fabric-provider"
+            
+            # Make request and fetch request id for tracking
+            resp = await session.request(method.upper(), url, headers=request_headers, **kwargs)
+            req_id = (resp.headers.get("x-ms-request-id") or 
+                     resp.headers.get("x-request-id") or 
+                     resp.headers.get("x-ms-root-activity-id") or
+                     resp.headers.get("x-ms-job-id") or
+                     resp.headers.get("x-job-id") or
+                     resp.headers.get("X-Job-Id"))
 
             # Retryable statuses -> raise ClientResponseError with enhanced logging
-            if resp.status in self.RETRYABLE_STATUSES:
-                # Get retry information from tenacity_retry if available
-                max_attempts = getattr(tenacity_retry.stop, 'max_attempt_number', 'unknown')
-                
+            if resp.status in self.RETRYABLE_STATUSES:                
                 self.log.warning(
-                    "HTTP request failed. URL: %s, StatusCode: %d (req_id=%s). Will retry (attempt %d of %s)",
-                    url.split('?',1)[0], resp.status, req_id, attempt_count, max_attempts
+                    "HTTP Request Failed [Status: %s, request_id: %s, attempt: %d/%d]: %s %s",
+                    resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
                 )
+                self.log.warning(resp.headers)
                 
                 # Read and close response before raising (to avoid ResourceWarning)
                 await resp.text()
@@ -83,9 +97,9 @@ class HttpClient:
 
             # Non-retryable 4xx -> raise AirflowException (enhanced logging)
             if 400 <= resp.status < 500:
-                self.log.warning(
-                    "HTTP request failed. URL: %s, StatusCode: %d (req_id=%s). Non-retryable error",
-                    url.split('?',1)[0], resp.status, req_id
+                self.log.error(
+                    "HTTP Request Failed [Status: %s, request_id: %s, attempt: %d/%d (Non Retryable Error)]: %s %s",
+                    resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
                 )
                 # Read and close response before raising (to avoid ResourceWarning)
                 body_text = await resp.text()
@@ -95,11 +109,10 @@ class HttpClient:
                 )
 
             # Log successful request on first attempt or after retries
-            if attempt_count > 1:
-                self.log.info(
-                    "HTTP request succeeded after %d attempts. URL: %s, StatusCode: %d (req_id=%s)",
-                    attempt_count, url.split('?',1)[0], resp.status, req_id
-                )
+            self.log.info(
+                "HTTP Request [Status: %s, request_id:%s, attempt:%d/%d]: %s %s",
+                resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
+            )
 
             # Return successful response (unconsumed)
             return resp

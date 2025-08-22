@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import Any, Dict
 
-from airflow.providers.microsoft.fabric.hooks.semantic_model_refresh import SemanticModelRefreshConfig, PowerBISemanticModelRefreshHook
+from airflow.providers.microsoft.fabric.hooks.semantic_model_refresh import SemanticModelRefreshConfig, MSFabricSemanticModelRefreshHook
 from airflow.providers.microsoft.fabric.hooks.run_item_model import RunItemTracker
 from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
 
-class PowerBISemanticModelRefreshTrigger(MSFabricRunItemTrigger):
+class MSFabricSemanticModelRefreshTrigger(MSFabricRunItemTrigger):
     """Trigger when a Fabric job is scheduled."""
 
     def __init__(
@@ -21,7 +21,7 @@ class PowerBISemanticModelRefreshTrigger(MSFabricRunItemTrigger):
         self.config = SemanticModelRefreshConfig.from_dict(self.config_dict)
         self.tracker = RunItemTracker.from_dict(self.tracker_dict)
 
-        self.hook = PowerBISemanticModelRefreshHook(config=self.config)
+        self.hook = MSFabricSemanticModelRefreshHook(config=self.config)
 
         # Initialize parent to start run
         super().__init__(self.hook, self.tracker)

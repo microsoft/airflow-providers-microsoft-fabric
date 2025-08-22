@@ -27,6 +27,7 @@ class XComKeys:
     ITEM_NAME = "item_name"
     RUN_STATUS = "run_status"
     ERROR_MESSAGE = "error_message"
+    OUTPUT = "output"
 
 
 class MSFabricItemLink(BaseOperatorLink):
@@ -148,6 +149,8 @@ class MSFabricRunItemOperator(BaseOperator):
                     await self.hook.close()
                 except Exception as e:
                     self.log.warning("Failed to close hook connections: %s", str(e))
+
+
     def create_failed_output(self, tracker: Optional[RunItemTracker], error: str) -> RunItemOutput:
         return RunItemOutput(
             tracker=tracker if tracker else RunItemTracker(item=self.item, run_id="Unknown", location_url="Unknown", run_timeout_in_seconds=0, start_time=datetime.now(), retry_after=None),
@@ -184,6 +187,10 @@ class MSFabricRunItemOperator(BaseOperator):
         ti = context.get("ti")
         if ti:                
             ti.xcom_push(key=XComKeys.RUN_STATUS, value=status.name)
+
+            if is_success and output.result:
+                ti.xcom_push(key=XComKeys.OUTPUT, value=output.result)
+            
             if not is_success and output.failed_reason:
                 ti.xcom_push(key=XComKeys.ERROR_MESSAGE, value=output.failed_reason)
 

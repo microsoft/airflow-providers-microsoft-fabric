@@ -2,7 +2,7 @@ from dataclasses import dataclass, field, fields as dc_fields
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Dict, Any
-from tenacity import Retrying
+from tenacity import AsyncRetrying, Retrying
 
 # ---------- Helpers (JSON-safe) ----------
 def _dump_datetime(dt: datetime) -> str:
@@ -66,7 +66,7 @@ class RunItemConfig:
     timeout_seconds: int
     poll_interval_seconds: int
     # Mark non-serializable / runtime-only with metadata so we can drop it
-    tenacity_retry: Optional[Retrying] = field(default=None, repr=False, compare=False, metadata={"dump": False})
+    tenacity_retry: Optional[AsyncRetrying] = field(default=None, repr=False, compare=False, metadata={"dump": False})
 
     def to_dict(self) -> Dict[str, Any]:
         d = {
@@ -97,6 +97,8 @@ class RunItemTracker:
     run_timeout_in_seconds: int
     start_time: datetime
     retry_after: Optional[timedelta]
+
+    output: Optional[Any] = None # serialization not supported as this should not go to trigger side.
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -144,6 +146,8 @@ class RunItemOutput:
     tracker: RunItemTracker
     status: MSFabricRunItemStatus
     failed_reason: Optional[str] = None
+
+    result: Optional[Any] = None # for non 202 execution, no trigger usage
 
     def to_dict(self) -> Dict[str, Any]:
         return {

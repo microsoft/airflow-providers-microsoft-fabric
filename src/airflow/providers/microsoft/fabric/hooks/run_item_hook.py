@@ -57,13 +57,11 @@ class MSFabricRunItemHook:
     @abstractmethod
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> bool: ...
 
-    @abstractmethod
-    async def deserialize_trigger_input(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> bool: ...
 
     async def initialize_run(
         self, 
         item: ItemDefinition,
-    ) -> RunItemTracker:        
+    ) -> RunItemTracker:
         """
         Initialize the Fabric item run and return ItemRun object with runtime information.
         
@@ -104,6 +102,17 @@ class MSFabricRunItemHook:
         :return: Tuple of (event_data, status_payload) - payload is None on timeout/failure
         """
 
+        # if tracker contains an output or timeout == 0, run_item completed with a 200
+        # in case of failures, the run_item should raise an exception
+        if not tracker.output or tracker.run_timeout_in_seconds == 0:
+            self.log.info("Run Completed: run_id %s, has_output: %s", tracker.run_id, bool(tracker.output))
+            return RunItemOutput(
+                tracker=tracker,
+                status=MSFabricRunItemStatus.COMPLETED,
+                result=tracker.output
+            )
+
+        # Wait for completion - this is a long-running operation
         timeout_time = tracker.start_time + timedelta(seconds=tracker.run_timeout_in_seconds)
         start_polling_time = tracker.start_time + timedelta(seconds=tracker.retry_after.total_seconds()) if tracker.retry_after else datetime.now()
 

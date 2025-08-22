@@ -48,9 +48,9 @@ class SemanticModelRefreshConfig(RunItemConfig):
         return cls(**{k: v for k, v in d.items() if k in allowed})
 
 
-class PowerBISemanticModelRefreshHook(MSFabricRunItemHook):
+class MSFabricSemanticModelRefreshHook(MSFabricRunItemHook):
     """
-    PowerBISemanticModelRefreshHookTrigger and monitor a Semantic Model (dataset) refresh using the Power BI REST API.
+    MSFabricSemanticModelRefreshHook and monitor a Semantic Model (dataset) refresh using the Power BI REST API.
     """
 
     hook_name = "Power BI Semantic Model Refresh"
@@ -79,16 +79,13 @@ class PowerBISemanticModelRefreshHook(MSFabricRunItemHook):
         response = await connection.request("POST", url, self.config.api_scope, json=body)
 
         headers = response.get("headers", {})
-        location_url = headers.get("Location")
-        if not location_url:
-            self.log.error("Missing Location header in response for item %s", item.item_id)
-            raise MSFabricRunItemException("Missing Location header in run response.")
-
-        # Extract run_id from x-ms-request-id header
-        run_id = headers.get("x-ms-request-id")
+        run_id = headers.get("RequestId")
         if not run_id:
-            self.log.warning("Missing x-ms-request-id header, run_id will be unknown")
-            run_id = "unknown"
+            self.log.error("Missing RequestId header in response for item %s", item.item_id)
+            raise MSFabricRunItemException("Missing RequestId header in run response.")
+        
+        # location_url is same as request, with /RequestId at the end - not provided as a header
+        location_url = f"{url}/{run_id}"
 
         # Extract retry-after header and convert to timedelta
         retry_after = timedelta(seconds=20)

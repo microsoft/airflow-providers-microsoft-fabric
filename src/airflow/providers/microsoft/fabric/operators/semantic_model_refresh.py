@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING, Sequence
-from airflow.providers.microsoft.fabric.hooks.semantic_model_refresh import SemanticModelRefreshConfig, PowerBISemanticModelRefreshHook
+from airflow.providers.microsoft.fabric.hooks.semantic_model_refresh import SemanticModelRefreshConfig, MSFabricSemanticModelRefreshHook
 from airflow.providers.microsoft.fabric.hooks.run_item_model import (
     ItemDefinition, RunItemTracker,
 )
 from airflow.providers.microsoft.fabric.operators.run_item import MSFabricItemLink, MSFabricRunItemOperator
-from airflow.providers.microsoft.fabric.triggers.semantic_model_refresh import PowerBISemanticModelRefreshTrigger
+from airflow.providers.microsoft.fabric.triggers.semantic_model_refresh import MSFabricSemanticModelRefreshTrigger
 
 if TYPE_CHECKING:
     from airflow.utils.context import Context
 
 
-class PowerBISemanticModelRefreshOperator(MSFabricRunItemOperator):
-    """Run a Fabric job via the Job Scheduler."""
+class MSFabricSemanticModelRefreshOperator(MSFabricRunItemOperator):
+    """Trigger a Semantic Model Refresh in Fabric."""
+    """ Required Permissions: Dataset.ReadWrite.All"""
+    """ Recommended Scope: https://analysis.windows.net/powerbi/api/.default"""
 
     # Keep template-able primitives as top-level attributes
     template_fields: Sequence[str] = (
@@ -73,7 +75,7 @@ class PowerBISemanticModelRefreshOperator(MSFabricRunItemOperator):
         )
 
         # If your hook needs more than conn_id, add it here
-        hook = PowerBISemanticModelRefreshHook(config=config)
+        hook = MSFabricSemanticModelRefreshHook(config=config)
 
         # Pass required args to the base class (fixes the missing kwargs error)
         super().__init__(hook=hook, item=item, **kwargs)
@@ -99,11 +101,11 @@ class PowerBISemanticModelRefreshOperator(MSFabricRunItemOperator):
             item_type="PowerBISemanticModel",
             item_id=self.item_id,
         )
-        self.hook = PowerBISemanticModelRefreshHook(self.config)
+        self.hook = MSFabricSemanticModelRefreshHook(self.config)
 
-    def create_trigger(self, tracker: RunItemTracker) -> PowerBISemanticModelRefreshTrigger:
+    def create_trigger(self, tracker: RunItemTracker) -> MSFabricSemanticModelRefreshTrigger:
         """Create and return the FabricHook (cached)."""
-        return PowerBISemanticModelRefreshTrigger(
+        return MSFabricSemanticModelRefreshTrigger(
             config=self.config.to_dict(),
             tracker=tracker.to_dict())
 

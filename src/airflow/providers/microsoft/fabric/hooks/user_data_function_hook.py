@@ -10,8 +10,8 @@ from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefiniti
 class UserDataFunctionConfig(RunItemConfig):
     # API configuration parameters
     api_host: str = "https://api.fabric.microsoft.com"
-    api_scope: str = "https://api.fabric.microsoft.com/.default"
-    job_params: Optional[dict] = None
+    api_scope: str = "https://analysis.windows.net/powerbi/api/user_impersonation/.default"
+    parameters: Optional[Dict] = None
 
     def to_dict(self) -> Dict[str, Any]:
         # Base handles fabric_conn_id/timeout/poll and drops tenacity_retry
@@ -23,7 +23,7 @@ class UserDataFunctionConfig(RunItemConfig):
         data.update({
             "api_host": self.api_host,
             "api_scope": self.api_scope,
-            "job_params": self.job_params,
+            "parameters": self.parameters,
         })
         return data
 
@@ -65,7 +65,7 @@ class MSFabricUserDataFunctionHook(MSFabricRunItemHook):
     ):
         super().__init__(config)
         
-        # Store config for access to api_host, api_scope, and job_params
+        # Store config for access to api_host, api_scope, and parameters
         self.config = config
 
         self.log.info(
@@ -94,7 +94,8 @@ class MSFabricUserDataFunctionHook(MSFabricRunItemHook):
         """
         Start a run for a user data function. 
         Based off this documentation: https://learn.microsoft.com/en-us/fabric/data-engineering/user-data-functions/tutorial-invoke-from-python-app
-        
+        Run will complete and return 200 in case of success, together with the output. 
+
         :param connection: MSFabricRestConnection instance for making API calls
         :param item: ItemDefinition containing the item configuration
         :return: RunItemTracker with run details
@@ -107,9 +108,9 @@ class MSFabricUserDataFunctionHook(MSFabricRunItemHook):
         # Use api_host from config instead of hardcoded URL
         url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/userDataFunctions/{item.item_id}/functions/{item.item_name}/invoke"
         
-        # Use job_params from config
-        job_params = self.config.job_params
-        body = job_params or {}
+        # Use parameters from config
+        parameters = self.config.parameters
+        body = parameters or {}
 
         # Use api_scope from config instead of hardcoded scope
         response = await connection.request("POST", url, self.config.api_scope, json=body)    
@@ -134,17 +135,18 @@ class MSFabricUserDataFunctionHook(MSFabricRunItemHook):
                 workspace_id=item.workspace_id,
                 item_type=item.item_type,
                 item_id=item.item_id,
-                item_name=item.item_name,
+                item_name=item.item_name,                
             ),
             run_id=invocation_id,
             location_url="",
-            run_timeout_in_seconds=0,
+            run_timeout_in_seconds=0, # 
             start_time=datetime.now(),
-            retry_after=timedelta(seconds=0)
+            retry_after=timedelta(seconds=0),
+            output=output  # Store output directly in tracker, signals operation completed with 200
         )
 
     async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus:
-        raise MSFabricRunItemException("User Data Function does not support fetch status, run synchrnously.")
+        return MSFabricRunItemStatus.COMPLETED #run_init would fail in case of error
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:
         raise MSFabricRunItemException("User Data Function does not support cancellation.")

@@ -26,7 +26,7 @@ def get_provider_info():
             }
         ],
         "extra-links": [
-            "airflow.providers.microsoft.fabric.operators.run_item.MSFabricItemLink",
+            "airflow.providers.microsoft.fabric.operators.run_item.base.MSFabricItemLink",
         ],
         "connection-types": [
             {

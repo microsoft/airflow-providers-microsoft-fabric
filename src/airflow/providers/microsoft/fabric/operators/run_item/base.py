@@ -31,34 +31,40 @@ class XComKeys:
 
 
 class MSFabricItemLink(BaseOperatorLink):
-    """
-    Link to the Fabric item run details page.
+    """Operator link to the Fabric item run in the portal."""
 
-    :param run_id: The item run ID.
-    :type run_id: str
-    """
     @property
     def name(self) -> str:
-        return "Monitor Item Run"
+        return "Microsoft Fabric Link"
 
     def get_link(self, operator: BaseOperator, *, ti_key: TaskInstanceKey) -> str:
+
+        item_type = XCom.get_value(key=XComKeys.ITEM_TYPE, ti_key=ti_key)
+        workspace_id = XCom.get_value(key=XComKeys.WORKSPACE_ID, ti_key=ti_key)
+        item_id = XCom.get_value(key=XComKeys.ITEM_ID, ti_key=ti_key)
+        item_name = XCom.get_value(key=XComKeys.ITEM_NAME, ti_key=ti_key)
         run_id = XCom.get_value(key=XComKeys.RUN_ID, ti_key=ti_key)
         item_name = XCom.get_value(key=XComKeys.ITEM_NAME, ti_key=ti_key)
 
-        workspace_id = getattr(operator, "workspace_id", None)
-        item_id = getattr(operator, "item_id", None)
-        job_type = getattr(operator, "job_type", None)
+        base_url =  "https://app.fabric.microsoft.com"
 
-        base_url = "https://app.fabric.microsoft.com"
-
-        if not run_id or not workspace_id or not item_id:
+        if not workspace_id or not item_id or not run_id or not item_type:
             return ""
 
-        if job_type == "RunNotebook":
-            return f"{base_url}/groups/{workspace_id}/synapsenotebooks/{item_id}?experience=data-factory"
+        if item_type == "RunNotebook":
+            return f"{base_url}/groups/{workspace_id}/synapsenotebooks/{item_id}"
 
-        elif job_type == "Pipeline" and item_name:
-            return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}?experience=data-factory"
+        elif item_type == "Pipeline" and item_name:
+            return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}"
+
+        elif item_type == "UserDataFunction":
+            return f"{base_url}/groups/{workspace_id}/userdatafunctions/{item_id}"
+        
+        elif item_type == "PowerBISemanticModel":
+            if run_id:
+                return f"{base_url}/groups/{workspace_id}/datasets/{item_id}/refreshdetails/{run_id}"
+            else:
+                return f"{base_url}/onelake/details/dataset/{item_id}/overview"
 
         return ""
 

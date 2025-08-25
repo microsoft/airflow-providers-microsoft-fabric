@@ -1,40 +1,90 @@
 from airflow import DAG
-from datetime import datetime
-from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunItemOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunJobOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunUserDataFunctionOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunSemanticModelRefreshOperator
 
 with DAG(
-  dag_id="test_fabric_notebook_run",
+  dag_id="ci_pipeline_dag",
   catchup=False,
 ) as dag:
 
-  # Assumes the workspace_id and item_id are already set in the Airflow connection
-  run_fabric_item_1 = MSFabricRunItemOperator(
-    task_id="run_fabric_item_1",
-    fabric_conn_id="fabric_integration",
-    workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-    item_id="38579073-b94d-4b88-86e5-898bc15a2542",
+  # Semantic Model - runs in daily only due to license issues.
+  # runSemanticModel1 = MSFabricRunSemanticModelRefreshOperator(
+  #   task_id="run_semantic_model_refresh",
+  #   fabric_conn_id="fabric-powerbi",
+  #   workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
+  #   item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
+  #   timeout=60 * 10, #10 minutes
+  #   deferrable=False,
+  #   api_host="https://dailyapi.fabric.microsoft.com")
+
+  # Notebook
+  runNotebook1 = MSFabricRunJobOperator(
+    task_id="runNotebookTask1_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
     job_type="RunNotebook",
-    wait_for_termination=True,
+    timeout=60 * 10, #10 minutes
+    #job_params={"sleep_minutes": "5"}, not yet supported by the API
+    deferrable=True
+  )
+
+  runNotebook2 = MSFabricRunJobOperator(
+    task_id="runNotebookTask2_sync",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
+    job_type="RunNotebook",
+    timeout=60 * 10, #10 minutes
+    deferrable=False, 
+  )
+
+  # Pipeline
+  runPipeline1 = MSFabricRunJobOperator(
+    task_id="runPipelineTask1_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
+    job_type="Pipeline",
+    timeout=60 * 10, #10 minutes
     deferrable=True,
   )
 
-  run_fabric_item_2 = MSFabricRunItemOperator(
-    task_id="run_fabric_item_2",
-    fabric_conn_id="fabric_integration",
-    workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-    item_id="38579073-b94d-4b88-86e5-898bc15a2542",
-    job_type="RunNotebook",
-    wait_for_termination=True,
+  runPipeline2 = MSFabricRunJobOperator(
+    task_id="runPipelineTask2_sync",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
+    job_type="Pipeline",
+    timeout=60 * 10, #10 minutes
     deferrable=False,
   )
 
-  run_fabric_item_3 = MSFabricRunItemOperator(
-  task_id="run_fabric_item_3",
-  fabric_conn_id="fabric_integration",
-  workspace_id="988a1272-9da5-4936-be68-39e9b62d85ef",
-  item_id="38579073-b94d-4b88-86e5-898bc15a2542",
-  job_type="RunNotebook",
-  wait_for_termination=False)
+  # User Function
+  runFunction1 = MSFabricRunUserDataFunctionOperator(
+    task_id="run_user_data_function1",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="1cc9a6ff-862b-4c13-8685-750a2103c858",
+    item_name="MyFunc1",
+    parameters=dict(name='value1', lastName='value2')
+  )
 
-  # Tasks will run in parallel by default since there are no dependencies defined
-  [run_fabric_item_1, run_fabric_item_2, run_fabric_item_3]
+  runFunction2 = MSFabricRunUserDataFunctionOperator(
+    task_id="run_user_data_function2",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="1cc9a6ff-862b-4c13-8685-750a2103c858",
+    item_name="MySleepFunc",
+    parameters=dict(sleepSeconds=90)
+  )
+
+  runFunction3 = MSFabricRunUserDataFunctionOperator(
+    task_id="run_user_data_function3",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="1cc9a6ff-862b-4c13-8685-750a2103c858",
+    item_name="MyNoParamFunc",
+    parameters=dict()  # No parameters, will use default from the function definition)
+  )

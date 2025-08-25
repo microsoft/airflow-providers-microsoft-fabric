@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, Any
 
-from airflow.providers.microsoft.fabric.hooks.rest_connection import MSFabricRestConnection
-from airflow.providers.microsoft.fabric.hooks.run_item_hook import MSFabricRunItemHook, MSFabricRunItemException
-from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefinition, RunItemTracker, RunItemConfig, MSFabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
+from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
+from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, RunItemTracker, RunItemConfig, MSFabricRunItemStatus
 
 @dataclass(kw_only=True)
 class JobSchedulerConfig(RunItemConfig):
@@ -48,7 +48,7 @@ class JobSchedulerConfig(RunItemConfig):
         return cls(**filtered)
 
 
-class MSFabricJobSchedulerHook(MSFabricRunItemHook):
+class MSFabricRunJobHook(BaseFabricRunItemHook):
     """
     Logical hook for triggering and monitoring Fabric item runs.
 
@@ -126,14 +126,14 @@ class MSFabricJobSchedulerHook(MSFabricRunItemHook):
             run_id = "unknown"
 
         # Extract retry-after header and convert to timedelta
-        retry_after = timedelta(seconds=20)
-        # retry_after_raw = headers.get("Retry-After")                  ---------------------------------------------------------- UNCOMMENT --------------------------------------------
-        # if retry_after_raw:
-        #     try:
-        #         retry_after_seconds = int(retry_after_raw)
-        #         retry_after = timedelta(seconds=retry_after_seconds)
-        #     except (ValueError, TypeError):
-        #         self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)        
+        retry_after = timedelta(seconds=30)
+        retry_after_raw = headers.get("Retry-After")
+        if retry_after_raw:
+            try:
+                retry_after_seconds = int(retry_after_raw)
+                retry_after = timedelta(seconds=retry_after_seconds)
+            except (ValueError, TypeError):
+                self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)
 
         self.log.info("Successfully started item run - location: %s, run_id: %s, retry_after: %s", location, run_id, retry_after)
 

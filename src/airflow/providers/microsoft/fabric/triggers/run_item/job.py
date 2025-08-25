@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import Any, Dict
 
-from airflow.providers.microsoft.fabric.hooks.job_scheduler_hook import JobSchedulerConfig, MSFabricJobSchedulerHook
-from airflow.providers.microsoft.fabric.hooks.run_item_model import RunItemTracker
-from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
+from airflow.providers.microsoft.fabric.hooks.run_item.job import JobSchedulerConfig, MSFabricRunJobHook
+from airflow.providers.microsoft.fabric.hooks.run_item.model import RunItemTracker
+from airflow.providers.microsoft.fabric.triggers.run_item.base import BaseFabricRunItemTrigger
 
-class MSFabricJobSchedulerTrigger(MSFabricRunItemTrigger):
+class MSFabricRunJobTrigger(BaseFabricRunItemTrigger):
     """Trigger when a Fabric job is scheduled."""
 
     def __init__(
@@ -21,16 +21,16 @@ class MSFabricJobSchedulerTrigger(MSFabricRunItemTrigger):
         self.config = JobSchedulerConfig.from_dict(self.config_dict)
         self.tracker = RunItemTracker.from_dict(self.tracker_dict)
 
-        self.hook = MSFabricJobSchedulerHook(config=self.config)
+        self.hook = MSFabricRunJobHook(config=self.config)
 
         # Initialize parent to start run
         super().__init__(self.hook, self.tracker)
 
 
     def serialize(self):
-        """Serialize the MSFabricJobSchedulerTrigger instance."""
+        """Serialize the MSFabricRunJobTrigger instance."""
         return (
-            "airflow.providers.microsoft.fabric.triggers.job_scheduler.MSFabricJobSchedulerTrigger",
+            "airflow.providers.microsoft.fabric.triggers.run_item.MSFabricRunJobTrigger",
             {
                 "config": self.config_dict,
                 "tracker": self.tracker_dict

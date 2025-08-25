@@ -1,15 +1,15 @@
 from airflow import DAG
-from airflow.providers.microsoft.fabric.operators.job_scheduler import MSFabricJobSchedulerOperator
-from airflow.providers.microsoft.fabric.operators.user_data_function import MSFabricUserDataFunctionOperator
-from airflow.providers.microsoft.fabric.operators.semantic_model_refresh import MSFabricSemanticModelRefreshOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunJobOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunUserDataFunctionOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunSemanticModelRefreshOperator
 
 with DAG(
   dag_id="ci_pipeline_dag",
   catchup=False,
 ) as dag:
 
-  # Semantic Model
-  # runSemanticModel1 = MSFabricSemanticModelRefreshOperator(
+  # Semantic Model - runs in daily only due to license issues.
+  # runSemanticModel1 = MSFabricRunSemanticModelRefreshOperator(
   #   task_id="run_semantic_model_refresh",
   #   fabric_conn_id="fabric-powerbi",
   #   workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
@@ -19,7 +19,7 @@ with DAG(
   #   api_host="https://dailyapi.fabric.microsoft.com")
 
   # Notebook
-  runNotebook1 = MSFabricJobSchedulerOperator(
+  runNotebook1 = MSFabricRunJobOperator(
     task_id="runNotebookTask1_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -30,7 +30,7 @@ with DAG(
     deferrable=True
   )
 
-  runNotebook2 = MSFabricJobSchedulerOperator(
+  runNotebook2 = MSFabricRunJobOperator(
     task_id="runNotebookTask2_sync",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -41,18 +41,18 @@ with DAG(
   )
 
   # Pipeline
-  runPipeline1 = MSFabricJobSchedulerOperator(
+  runPipeline1 = MSFabricRunJobOperator(
     task_id="runPipelineTask1_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
     item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
     job_type="Pipeline",
     timeout=60 * 10, #10 minutes
-    # deferrable=True, # default value
+    deferrable=True,
   )
 
-  runPipeline2 = MSFabricJobSchedulerOperator(
-    task_id="runPipelineTask2_deferred",
+  runPipeline2 = MSFabricRunJobOperator(
+    task_id="runPipelineTask2_sync",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
     item_id="3d99c6f8-b37e-4712-a80c-25c52b9e2ae2",
@@ -62,7 +62,7 @@ with DAG(
   )
 
   # User Function
-  runFunction1 = MSFabricUserDataFunctionOperator(
+  runFunction1 = MSFabricRunUserDataFunctionOperator(
     task_id="run_user_data_function1",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -71,7 +71,7 @@ with DAG(
     parameters=dict(name='value1', lastName='value2')
   )
 
-  runFunction2 = MSFabricUserDataFunctionOperator(
+  runFunction2 = MSFabricRunUserDataFunctionOperator(
     task_id="run_user_data_function2",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -80,7 +80,7 @@ with DAG(
     parameters=dict(sleepSeconds=90)
   )
 
-  runFunction3 = MSFabricUserDataFunctionOperator(
+  runFunction3 = MSFabricRunUserDataFunctionOperator(
     task_id="run_user_data_function3",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",

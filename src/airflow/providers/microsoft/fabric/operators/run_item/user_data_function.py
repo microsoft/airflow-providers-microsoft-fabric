@@ -1,36 +1,34 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Sequence
-from airflow.providers.microsoft.fabric.hooks.semantic_model_refresh import SemanticModelRefreshConfig, MSFabricSemanticModelRefreshHook
-from airflow.providers.microsoft.fabric.hooks.run_item_model import (
+from typing import TYPE_CHECKING, Optional, Sequence
+from airflow.providers.microsoft.fabric.hooks.run_item.base import MSFabricRunItemException
+from airflow.providers.microsoft.fabric.hooks.run_item.user_data_function import UserDataFunctionConfig, MSFabricRunUserDataFunctionHook
+from airflow.providers.microsoft.fabric.triggers.run_item.base import BaseFabricRunItemTrigger
+
+from airflow.providers.microsoft.fabric.hooks.run_item.model import (
     ItemDefinition, RunItemTracker,
 )
-from airflow.providers.microsoft.fabric.operators.run_item import MSFabricItemLink, MSFabricRunItemOperator
-from airflow.providers.microsoft.fabric.triggers.semantic_model_refresh import MSFabricSemanticModelRefreshTrigger
+from airflow.providers.microsoft.fabric.operators.run_item.base import MSFabricItemLink, BaseFabricRunItemOperator
 
 if TYPE_CHECKING:
     from airflow.utils.context import Context
 
 
-class MSFabricSemanticModelRefreshOperator(MSFabricRunItemOperator):
-    """Trigger a Semantic Model Refresh in Fabric."""
-    """ Required Permissions: Dataset.ReadWrite.All"""
-    """ Recommended Scope: https://analysis.windows.net/powerbi/api/.default"""
+class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
+    """Run a Fabric job via the Job Scheduler."""
 
     # Keep template-able primitives as top-level attributes
     template_fields: Sequence[str] = (
         "fabric_conn_id",
         "workspace_id",
         "item_id",
-        "timeout",
-        "check_interval",
-        "deferrable",
-        "job_params",
+        "item_name",
+        "parameters",
         "api_host",
         "scope",
     )
-    template_fields_renderers = {"job_params": "json"}  # optional
+    template_fields_renderers = {"parameters": "json"}  # optional
 
     operator_extra_links = (MSFabricItemLink(),)
 
@@ -40,11 +38,9 @@ class MSFabricSemanticModelRefreshOperator(MSFabricRunItemOperator):
         fabric_conn_id: str,
         workspace_id: str,
         item_id: str,
-        timeout: int = 60 * 60,   # 1 hour
-        check_interval: int = 5,
-        deferrable: bool = True,
-        job_params: dict | None = None,
-        api_host: str = "https://api.powerbi.com",
+        item_name: str,
+        parameters: Optional[dict] | None = None,
+        api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://analysis.windows.net/powerbi/api/.default",
         **kwargs,
     ) -> None:
@@ -52,30 +48,31 @@ class MSFabricSemanticModelRefreshOperator(MSFabricRunItemOperator):
         self.fabric_conn_id = fabric_conn_id
         self.workspace_id = workspace_id
         self.item_id = item_id
-        self.timeout = timeout
-        self.check_interval = check_interval
-        self.deferrable = deferrable
-        self.job_params = job_params or {}
+        self.item_name = item_name
+        self.job_type = "UserDataFunction"
+        self.timeout = 0 
+        self.parameters = parameters or {}
         self.api_host = api_host
         self.scope = scope
 
         # Build initial dataclasses from the *current* values
-        config = SemanticModelRefreshConfig(
+        config = UserDataFunctionConfig(
             fabric_conn_id=self.fabric_conn_id,
             timeout_seconds=self.timeout,
-            poll_interval_seconds=self.check_interval,
+            poll_interval_seconds=0,
             api_host=self.api_host,
             api_scope=self.scope,
-            job_params=self.job_params,
+            parameters=self.parameters,
         )
         item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type="PowerBISemanticModel",
+            item_type=self.job_type,
             item_id=self.item_id,
+            item_name=self.item_name,
         )
 
         # If your hook needs more than conn_id, add it here
-        hook = MSFabricSemanticModelRefreshHook(config=config)
+        hook = MSFabricRunUserDataFunctionHook(config=config)
 
         # Pass required args to the base class (fixes the missing kwargs error)
         super().__init__(hook=hook, item=item, **kwargs)
@@ -88,30 +85,29 @@ class MSFabricSemanticModelRefreshOperator(MSFabricRunItemOperator):
         super().render_template_fields(context, jinja_env=jinja_env)
 
         # Rebuild objects with the *rendered* values so they’re up to date
-        self.config = SemanticModelRefreshConfig(
+        self.config = UserDataFunctionConfig(
             fabric_conn_id=self.fabric_conn_id,
             timeout_seconds=self.timeout,
-            poll_interval_seconds=self.check_interval,
+            poll_interval_seconds=0,
             api_host=self.api_host,
             api_scope=self.scope,
-            job_params=self.job_params,
+            parameters=self.parameters,
         )
         self.item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type="PowerBISemanticModel",
+            item_type=self.job_type,
             item_id=self.item_id,
+            item_name=self.item_name,
         )
-        self.hook = MSFabricSemanticModelRefreshHook(self.config)
+        self.hook = MSFabricRunUserDataFunctionHook(self.config)
 
-    def create_trigger(self, tracker: RunItemTracker) -> MSFabricSemanticModelRefreshTrigger:
+    def create_trigger(self, tracker: RunItemTracker) -> BaseFabricRunItemTrigger:
         """Create and return the FabricHook (cached)."""
-        return MSFabricSemanticModelRefreshTrigger(
-            config=self.config.to_dict(),
-            tracker=tracker.to_dict())
+        raise MSFabricRunItemException("User data function does not support asynchronous execution.")
 
     def execute(self, context: Context) -> None:
         """Execute the Fabric item run."""
-        self.log.info("Starting Semantic Model Refresh - workspace_id: %s, item_id: %s",
-                      self.item.workspace_id, self.item.item_id)
+        self.log.info("Starting User Data Function Run - workspace_id: %s, job_type: %s, item_id: %s",
+                      self.item.workspace_id, self.item.item_type, self.item.item_id)
 
-        asyncio.run(self._execute_core(context, self.deferrable))
+        asyncio.run(self._execute_core(context, False))

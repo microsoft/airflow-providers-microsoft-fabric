@@ -5,12 +5,12 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from airflow.models import BaseOperator, BaseOperatorLink, XCom
-from airflow.providers.microsoft.fabric.hooks.run_item_hook import (
+from airflow.providers.microsoft.fabric.hooks.run_item.base import (
     MSFabricRunItemException,
-    MSFabricRunItemHook,
+    BaseFabricRunItemHook,
 )
-from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefinition, MSFabricRunItemStatus, RunItemOutput, RunItemTracker
-from airflow.providers.microsoft.fabric.triggers.run_item import MSFabricRunItemTrigger
+from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, MSFabricRunItemStatus, RunItemOutput, RunItemTracker
+from airflow.providers.microsoft.fabric.triggers.run_item.base import BaseFabricRunItemTrigger
 
 if TYPE_CHECKING:
     from airflow.models.taskinstancekey import TaskInstanceKey
@@ -63,9 +63,12 @@ class MSFabricItemLink(BaseOperatorLink):
         return ""
 
 
-class MSFabricRunItemOperator(BaseOperator):
+class BaseFabricRunItemOperator(BaseOperator):
     """Operator to run a Fabric item (e.g. a notebook) in a workspace."""
-    def __init__(self, *, hook: MSFabricRunItemHook, item: ItemDefinition, **kwargs) -> None:
+
+    operator_extra_links = (MSFabricItemLink(),)
+    
+    def __init__(self, *, hook: BaseFabricRunItemHook, item: ItemDefinition, **kwargs) -> None:
         super().__init__(**kwargs)
         self.hook = hook
         self.item = item
@@ -75,9 +78,9 @@ class MSFabricRunItemOperator(BaseOperator):
     def execute(self, context: Context) -> None: ...
 
     @abstractmethod
-    def create_trigger(self, tracker: RunItemTracker) -> MSFabricRunItemTrigger: ...
+    def create_trigger(self, tracker: RunItemTracker) -> BaseFabricRunItemTrigger: ...
 
-    async def _execute_core(self, context: Context, deferrable: bool) -> None:
+    async def _execute_core(self, context: Context, deferrable: bool, wait_for_termination: bool = True) -> None:
         """Core execution logic that works for both deferrable and synchronous modes."""
         tracker = None
 
@@ -103,6 +106,11 @@ class MSFabricRunItemOperator(BaseOperator):
                 # Add run information
                 ti.xcom_push(key=XComKeys.RUN_ID, value=tracker.run_id)
                 ti.xcom_push(key=XComKeys.ITEM_NAME, value=tracker.item.item_name)
+
+            # If not waiting for termination, return immediately after initialization
+            if not wait_for_termination:
+                self.log.warning("Not waiting for termination, Airflow won't report proper output. Job info: run_id: %s, location_url: %s", tracker.run_id, tracker.location_url)
+                return
 
             if deferrable:
                 self.log.info("Deferring task to trigger - run_id: %s will be monitored asynchronously", tracker.run_id)

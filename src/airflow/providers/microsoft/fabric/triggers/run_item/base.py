@@ -1,16 +1,16 @@
 from __future__ import annotations
 from typing import AsyncIterator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
-from airflow.providers.microsoft.fabric.hooks.run_item_hook import MSFabricRunItemHook
-from airflow.providers.microsoft.fabric.hooks.run_item_model import RunItemOutput, RunItemTracker, MSFabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook
+from airflow.providers.microsoft.fabric.hooks.run_item.model import RunItemOutput, RunItemTracker, MSFabricRunItemStatus
 
 
-class MSFabricRunItemTrigger(BaseTrigger):
+class BaseFabricRunItemTrigger(BaseTrigger):
     """Trigger when a Fabric item run finishes."""
 
     def __init__(
         self,
-        hook: MSFabricRunItemHook,
+        hook: BaseFabricRunItemHook,
         tracker: RunItemTracker
     ):
         super().__init__()

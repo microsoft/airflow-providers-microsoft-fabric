@@ -2,7 +2,7 @@ from dataclasses import dataclass, field, fields as dc_fields
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, Dict, Any
-from tenacity import AsyncRetrying, Retrying
+from tenacity import AsyncRetrying
 
 # ---------- Helpers (JSON-safe) ----------
 def _dump_datetime(dt: datetime) -> str:

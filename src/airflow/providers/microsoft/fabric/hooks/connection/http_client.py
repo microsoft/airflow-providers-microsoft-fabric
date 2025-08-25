@@ -65,17 +65,12 @@ class HttpClient:
             request_headers = headers or {}
             request_headers = dict(request_headers)  # Make a copy to avoid modifying original            
             if 'referer' not in (k.lower() for k in request_headers.keys()):
-                request_headers['Referer'] = "apache-airflow-fabric-provider"
+                request_headers['Referer'] = "apache-airflow-providers-microsoft-fabric"
             
             # Make request and fetch request id for tracking
             resp = await session.request(method.upper(), url, headers=request_headers, **kwargs)
-            req_id = (resp.headers.get("x-ms-request-id") or 
-                     resp.headers.get("x-request-id") or 
-                     resp.headers.get("x-ms-root-activity-id") or
-                     resp.headers.get("x-ms-job-id") or
-                     resp.headers.get("x-job-id") or
-                     resp.headers.get("X-Job-Id"))
-
+            req_id = self.get_request_id(resp.headers)
+            
             # Retryable statuses -> raise ClientResponseError with enhanced logging
             if resp.status in self.RETRYABLE_STATUSES:                
                 self.log.warning(
@@ -165,8 +160,8 @@ class HttpClient:
             req_id = response_headers.get("x-ms-request-id") or response_headers.get("x-request-id")
 
             # Log detailed request/response at debug level with redaction
-            if self.log.isEnabledFor(logging.INFO):
-                self.log.info(self._redactor.preview_response(
+            if self.log.isEnabledFor(logging.DEBUG):
+                self.log.debug(self._redactor.preview_response(
                     method, url, status_code, response_headers, body_text, ctype, req_id
                 ))
             else:
@@ -200,6 +195,26 @@ class HttpClient:
             await self._session.close()
             self.log.info("Closed aiohttp session")
 
+    def get_request_id(self, headers: Optional[Mapping[str, Any]]) -> Optional[str]:
+        """
+        Return the first non-empty request id found in headers.
+        Case-insensitive check across known header names used by Fabric.
+        """
+        if not headers:
+            return None
+        # Normalize keys to lowercase for case-insensitive lookup
+        lower = {k.lower(): v for k, v in headers.items()}
+        for hdr in (
+            "x-ms-request-id",
+            "x-request-id",
+            "x-ms-root-activity-id",
+            "x-ms-job-id",
+            "x-job-id",
+        ):
+            val = lower.get(hdr)
+            if val and str(val).strip():
+                return str(val).strip()
+        return None
 
 # -------------------- Internal redactor --------------------
 

@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING, Sequence
-from airflow.providers.microsoft.fabric.hooks.job_scheduler_hook import JobSchedulerConfig, MSFabricJobSchedulerHook
-from airflow.providers.microsoft.fabric.hooks.run_item_model import (
+from airflow.providers.microsoft.fabric.hooks.run_item.job import JobSchedulerConfig, MSFabricRunJobHook
+from airflow.providers.microsoft.fabric.hooks.run_item.model import (
     ItemDefinition, RunItemTracker,
 )
-from airflow.providers.microsoft.fabric.operators.run_item import MSFabricItemLink, MSFabricRunItemOperator
-from airflow.providers.microsoft.fabric.triggers.job_scheduler import MSFabricJobSchedulerTrigger
+from airflow.providers.microsoft.fabric.operators.run_item.base import MSFabricItemLink, BaseFabricRunItemOperator
+from airflow.providers.microsoft.fabric.triggers.run_item.job import MSFabricRunJobTrigger
 
 if TYPE_CHECKING:
     from airflow.utils.context import Context
 
-
-class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
+class MSFabricRunJobOperator(BaseFabricRunItemOperator):
     """Run a Fabric job via the Job Scheduler."""
 
     # Keep template-able primitives as top-level attributes
@@ -46,6 +45,7 @@ class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
         job_params: dict | None = None,
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://api.fabric.microsoft.com/.default",
+        wait_for_termination = True,
         **kwargs,
     ) -> None:
         # Store raw values so Airflow can template them later
@@ -59,6 +59,12 @@ class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
         self.job_params = job_params or {}
         self.api_host = api_host
         self.scope = scope
+        self.wait_for_termination = wait_for_termination # do not document this, available for backwards compatibility only
+
+        # deal with bad config in UI template
+        if job_type == "RunPipeline":
+            self.job_type = "Pipeline"
+            
 
         # Build initial dataclasses from the *current* values
         config = JobSchedulerConfig(
@@ -76,7 +82,7 @@ class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
         )
 
         # If your hook needs more than conn_id, add it here
-        hook = MSFabricJobSchedulerHook(config=config)
+        hook = MSFabricRunJobHook(config=config)
 
         # Pass required args to the base class (fixes the missing kwargs error)
         super().__init__(hook=hook, item=item, **kwargs)
@@ -102,11 +108,11 @@ class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
             item_type=self.job_type,
             item_id=self.item_id,
         )
-        self.hook = MSFabricJobSchedulerHook(self.config)
+        self.hook = MSFabricRunJobHook(self.config)
 
-    def create_trigger(self, tracker: RunItemTracker) -> MSFabricJobSchedulerTrigger:
+    def create_trigger(self, tracker: RunItemTracker) -> MSFabricRunJobTrigger:
         """Create and return the FabricHook (cached)."""
-        return MSFabricJobSchedulerTrigger(
+        return MSFabricRunJobTrigger(
             config=self.config.to_dict(),
             tracker=tracker.to_dict())
 
@@ -115,4 +121,4 @@ class MSFabricJobSchedulerOperator(MSFabricRunItemOperator):
         self.log.info("Starting Fabric item run - workspace_id: %s, job_type: %s, item_id: %s",
                       self.item.workspace_id, self.item.item_type, self.item.item_id)
 
-        asyncio.run(self._execute_core(context, self.deferrable))
+        asyncio.run(self._execute_core(context, self.deferrable, self.wait_for_termination))

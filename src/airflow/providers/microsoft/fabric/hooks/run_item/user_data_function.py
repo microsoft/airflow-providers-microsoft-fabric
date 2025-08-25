@@ -2,9 +2,9 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, List, Any
 
-from airflow.providers.microsoft.fabric.hooks.rest_connection import MSFabricRestConnection
-from airflow.providers.microsoft.fabric.hooks.run_item_hook import MSFabricRunItemHook, MSFabricRunItemException
-from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefinition, RunItemTracker, RunItemConfig, MSFabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
+from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
+from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, RunItemTracker, RunItemConfig, MSFabricRunItemStatus
 
 @dataclass(kw_only=True)
 class UserDataFunctionConfig(RunItemConfig):
@@ -48,7 +48,7 @@ class UserDataFunctionConfig(RunItemConfig):
         return cls(**filtered)
 
 
-class MSFabricUserDataFunctionHook(MSFabricRunItemHook):
+class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
     """
     Logical hook for triggering and monitoring Fabric User Data Functions runs.
 

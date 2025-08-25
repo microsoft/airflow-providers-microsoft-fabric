@@ -7,8 +7,8 @@ from airflow.models.connection import Connection
 from airflow.exceptions import AirflowException, AirflowNotFoundException
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
-from airflow.providers.microsoft.fabric.hooks.http_client import HttpClient
-from airflow.providers.microsoft.fabric.hooks.rest_connection_spn import MSFabricRestConnectionSPN
+from airflow.providers.microsoft.fabric.hooks.connection.http_client import HttpClient
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection_spn import MSFabricRestConnectionSPN
 
 from wtforms import StringField, PasswordField
 from flask_appbuilder.fieldwidgets import BS3PasswordFieldWidget, BS3TextFieldWidget

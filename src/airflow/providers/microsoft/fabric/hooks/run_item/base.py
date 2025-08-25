@@ -4,15 +4,15 @@ import logging
 from datetime import datetime, timedelta
 
 from airflow.exceptions import AirflowException
-from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefinition, MSFabricRunItemStatus, RunItemConfig, RunItemOutput, RunItemTracker
-from airflow.providers.microsoft.fabric.hooks.rest_connection import MSFabricRestConnection
+from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, MSFabricRunItemStatus, RunItemConfig, RunItemOutput, RunItemTracker
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
 
 
 class MSFabricRunItemException(AirflowException):
     """Raised when a Fabric item run fails or times out."""
 
 
-class MSFabricRunItemHook:
+class BaseFabricRunItemHook:
     """
     Logical hook for triggering and monitoring Fabric item runs.
 

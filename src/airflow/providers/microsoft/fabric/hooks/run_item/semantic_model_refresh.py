@@ -1,13 +1,13 @@
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, Any
 
-from airflow.providers.microsoft.fabric.hooks.run_item_model import RunItemConfig
+from airflow.providers.microsoft.fabric.hooks.run_item.model import RunItemConfig
 from datetime import datetime, timedelta
 from typing import Optional
 
-from airflow.providers.microsoft.fabric.hooks.rest_connection import MSFabricRestConnection
-from airflow.providers.microsoft.fabric.hooks.run_item_hook import MSFabricRunItemHook, MSFabricRunItemException
-from airflow.providers.microsoft.fabric.hooks.run_item_model import ItemDefinition, RunItemTracker, MSFabricRunItemStatus
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
+from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
+from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, RunItemTracker, MSFabricRunItemStatus
 
 
 @dataclass(kw_only=True)
@@ -48,9 +48,9 @@ class SemanticModelRefreshConfig(RunItemConfig):
         return cls(**{k: v for k, v in d.items() if k in allowed})
 
 
-class MSFabricSemanticModelRefreshHook(MSFabricRunItemHook):
+class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
     """
-    MSFabricSemanticModelRefreshHook and monitor a Semantic Model (dataset) refresh using the Power BI REST API.
+    MSFabricRunSemanticModelRefreshHook and monitor a Semantic Model (dataset) refresh using the Power BI REST API.
     """
 
     hook_name = "Power BI Semantic Model Refresh"
@@ -88,16 +88,14 @@ class MSFabricSemanticModelRefreshHook(MSFabricRunItemHook):
         location_url = f"{url}/{run_id}"
 
         # Extract retry-after header and convert to timedelta
-        retry_after = timedelta(seconds=20)
-        # retry_after_raw = headers.get("Retry-After")                  ---------------------------------------------------------- UNCOMMENT --------------------------------------------
-        # if retry_after_raw:
-        #     try:
-        #         retry_after_seconds = int(retry_after_raw)
-        #         retry_after = timedelta(seconds=retry_after_seconds)
-        #     except (ValueError, TypeError):
-        #         self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)        
-
-        # Prefer refresh_id when present; else fall back to request_id
+        retry_after = timedelta(seconds=30)
+        retry_after_raw = headers.get("Retry-After", "0")
+        if retry_after_raw:
+            try:
+                retry_after_seconds = int(retry_after_raw)
+                retry_after = timedelta(seconds=retry_after_seconds)
+            except (ValueError, TypeError):
+                self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)
 
         self.log.info("Started refresh: run_id=%s refresh_id=%s location=%s", run_id, run_id, location_url)
 

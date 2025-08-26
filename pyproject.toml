@@ -16,7 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
-version = "0.0.4"
+version = "0.0.5"
 requires-python = ">=3.8"
 dependencies = [
     "requests",

@@ -41,7 +41,7 @@ class MSFabricRunSemanticModelRefreshOperator(BaseFabricRunItemOperator):
         workspace_id: str,
         item_id: str,
         timeout: int = 60 * 60,   # 1 hour
-        check_interval: int = 5,
+        check_interval: int = 30,
         deferrable: bool = True,
         job_params: dict | None = None,
         api_host: str = "https://api.powerbi.com",
@@ -58,6 +58,9 @@ class MSFabricRunSemanticModelRefreshOperator(BaseFabricRunItemOperator):
         self.job_params = job_params or {}
         self.api_host = api_host
         self.scope = scope
+
+        if (check_interval < 30):
+            self.log.warning("check_interval interval is too short, which can lead to throttling.")
 
         # Build initial dataclasses from the *current* values
         config = SemanticModelRefreshConfig(

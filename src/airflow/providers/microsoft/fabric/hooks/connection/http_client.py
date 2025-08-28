@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import asyncio
 from dataclasses import dataclass, field
 from typing import Optional, Mapping, Dict, Any, Tuple
 
@@ -78,6 +79,36 @@ class HttpClient:
                     resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
                 )
                 self.log.warning(resp.headers)
+                
+                # For 429 responses, check for Retry-After header and wait accordingly
+                # This seems specially important for semantic model refresh. 
+                if resp.status == 429:
+                    retry_after_header = resp.headers.get('Retry-After') or resp.headers.get('retry-after')
+                    if retry_after_header:
+                        try:
+                            retry_after_seconds = int(retry_after_header)
+                            self.log.info(
+                                "HTTP 429 response includes Retry-After: %d seconds. Waiting before retry.",
+                                retry_after_seconds
+                            )
+                            # Read and close response before waiting
+                            await resp.text()
+                            resp.close()
+                            
+                            # Wait for the specified time before letting tenacity handle the retry
+                            await asyncio.sleep(retry_after_seconds)
+                            
+                            # Now raise the exception for tenacity to handle
+                            raise ClientResponseError(
+                                request_info=resp.request_info,
+                                history=resp.history,
+                                status=resp.status,
+                                message=f"HTTP 429 with Retry-After: {retry_after_seconds}s ({method} {url.split('?',1)[0]}) req_id={req_id}",
+                                headers=resp.headers,
+                            )
+                        except (ValueError, TypeError):
+                            self.log.warning("Invalid Retry-After header value: %s", retry_after_header)
+                            # Fall through to default retry behavior
                 
                 # Read and close response before raising (to avoid ResourceWarning)
                 await resp.text()
@@ -164,8 +195,6 @@ class HttpClient:
                 self.log.debug(self._redactor.preview_response(
                     method, url, status_code, response_headers, body_text, ctype, req_id
                 ))
-            else:
-                self.log.info("HTTP Request[%s]: %s - Status: %s, Request Id: %s",method, url, status_code, req_id)
 
             # Parse JSON with graceful handling of non-JSON responses
             body = {}  # Default to empty dict

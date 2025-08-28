@@ -90,7 +90,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             self.log.error("Failed to initialize MS Fabric Job Scheduler Hook: %s", str(e))
             raise
 
-    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition, item_name: str) -> RunItemTracker:
+    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker:
         """
         Start a Fabric item run using the Job API.
         
@@ -135,7 +135,10 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             except (ValueError, TypeError):
                 self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)
 
-        self.log.info("Successfully started item run - location: %s, run_id: %s, retry_after: %s", location, run_id, retry_after)
+        # fetch artifact name
+        item_name = await self.get_item_name(item)
+
+        self.log.debug("Successfully started item run - name: %s, run_id: %s, retry_after: %s, location: %s", item_name, run_id, retry_after, location)
 
         # Create and return RunItemTracker using config timeout
         return RunItemTracker(

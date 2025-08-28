@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 
 from airflow.providers.microsoft.fabric.hooks.run_item.model import RunItemConfig
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
 from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
@@ -67,15 +67,13 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
         )
 
 
-    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition, item_name: str) -> RunItemTracker:
+    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker:
         """
         Start a dataset refresh (semantic model) via REST API.
         Assumes item.item_id is the datasetId (common in Fabric). If your item id differs, pass the datasetId there.
         """
         url = f"{self.config.api_host}/v1.0/myorg/groups/{item.workspace_id}/datasets/{item.item_id}/refreshes"
         body = self.config.job_params or {}
-
-        self.log.info("POST refresh group=%s dataset=%s body=%s", item.workspace_id, item.item_id, body)
         response = await connection.request("POST", url, self.config.api_scope, json=body)
 
         headers = response.get("headers", {})
@@ -83,13 +81,13 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
         if not run_id:
             self.log.error("Missing RequestId header in response for item %s", item.item_id)
             raise MSFabricRunItemException("Missing RequestId header in run response.")
-        
+
         # location_url is same as request, with /RequestId at the end - not provided as a header
-        location_url = f"{url}/{run_id}"
+        location_url = f"{url}"
 
         # Extract retry-after header and convert to timedelta
         retry_after = timedelta(seconds=30)
-        retry_after_raw = headers.get("Retry-After", "0")
+        retry_after_raw = headers.get("Retry-After")
         if retry_after_raw:
             try:
                 retry_after_seconds = int(retry_after_raw)
@@ -97,14 +95,17 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
             except (ValueError, TypeError):
                 self.log.warning("Invalid Retry-After header value: %s", retry_after_raw)
 
-        self.log.info("Started refresh: run_id=%s refresh_id=%s location=%s", run_id, run_id, location_url)
+        # fetch artifact name
+        item_name = await self.get_item_name(item)
+
+        self.log.debug("Started semantic model refresh: name: %s, run_id=%s refresh_id=%s, retry_after: %s, location=%s", item_name, run_id, run_id, retry_after, location_url)
 
         return RunItemTracker(
             item=ItemDefinition(
                 workspace_id=item.workspace_id,
                 item_type=item.item_type,
                 item_id=item.item_id,
-                item_name=item.item_name,
+                item_name=item_name,
             ),
             run_id=run_id,
             location_url=location_url,
@@ -115,18 +116,26 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
 
     async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus:
         """
-        Poll the refresh status.
+        Poll the refresh status using refresh history.
         Semantic Model Eviction: Operation can be retried, see URL below for error handling
         PowerBI Embedded: Operation may remain in progress for up to 6 hours if capacity is paused       
             - https://learn.microsoft.com/en-us/power-bi/connect-data/asynchronous-refresh#semantic-model-eviction
         """
-        resp = await connection.request("GET", tracker.location_url, self.config.api_scope)
-        sourceStatus = resp.get("status")
-        status = self._parse_status(sourceStatus)
-        body = resp.get("body") or {}
+        # Get refresh history instead of direct status check
+        history_url = f"{self.config.api_host}/v1.0/myorg/groups/{tracker.item.workspace_id}/datasets/{tracker.item.item_id}/refreshes"
+        resp = await connection.request("GET", history_url, self.config.api_scope)
+        
+        try:
+            status, error_message = self._get_status_from_history(resp.get("body", {}), tracker.run_id)
+            
+            if status == MSFabricRunItemStatus.FAILED and error_message:
+                self.log.error("Refresh failed: run_id=%s error=%s", tracker.run_id, error_message)
 
-        self.log.info("GET refresh status: run_id=%s status=%s(SourceStatus: %s) body=%s", tracker.run_id, status, sourceStatus, body)
-        return status
+            return status
+                        
+        except MSFabricRunItemException as e:
+            self.log.error("Failed to get status from history: %s. Falling back to direct status check.", str(e))                    
+            raise
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> bool:
         """
@@ -146,7 +155,6 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
             self.log.warning("Cancel failed for %s - ERROR: %s", tracker.location_url, e)
             return False
 
-
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:
         """
         Map Power BI status strings to your enum.
@@ -162,16 +170,39 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
         match sourceStatus:
             case "InProgress":
                 return MSFabricRunItemStatus.IN_PROGRESS
-            
+
+            case "Completed":
+                return MSFabricRunItemStatus.COMPLETED
+
             case "Failed":
                 return MSFabricRunItemStatus.FAILED
-            
-            case "Disabled":
-                return MSFabricRunItemStatus.DISABLED
-            
+                        
             case "Cancelled":
                 return MSFabricRunItemStatus.CANCELLED
             
+            case "Pending":
+                return MSFabricRunItemStatus.NOT_STARTED
+            
             case _:
-                self.log.warning("Unknown state found '%s' - mapping to IN_PROGRESS", sourceStatus)
-                return MSFabricRunItemStatus.IN_PROGRESS # NEED TO TEST UNKNOWN STATE - what would be the best status for it?
+                self.log.warning("Unknown state found '%s' - mapping to NOT_STARTED", sourceStatus)
+                return MSFabricRunItemStatus.NOT_STARTED
+
+                        
+    def _get_status_from_history(self, json_data: Dict[str, Any], request_id: str) -> Tuple[MSFabricRunItemStatus, str]:
+
+        if "value" not in json_data:
+            raise MSFabricRunItemException(f"Bad refresh history response.")
+
+        for refresh_item in json_data["value"]:
+            if refresh_item.get("requestId") == request_id:
+
+                raw_status = refresh_item.get("status");
+                status = self._parse_status(raw_status)
+
+                if status ==  MSFabricRunItemStatus.FAILED:
+                    error_message = refresh_item.get("serviceExceptionJson")
+                    return (MSFabricRunItemStatus.FAILED, error_message)
+
+                return (status, "")
+
+        raise MSFabricRunItemException(f"RequestId {request_id} not found in response.")

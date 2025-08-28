@@ -10,23 +10,23 @@ with DAG(
 ) as dag:
 
   # Semantic Model - runs in daily only due to license issues.
-  runSemanticModel1 = MSFabricRunSemanticModelRefreshOperator(
-    task_id="run_semantic_model_refresh",
-    fabric_conn_id="fabric-powerbi",
-    workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
-    item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
-    timeout=60 * 10, #10 minutes
-    deferrable=False,
-    api_host="https://dailyapi.fabric.microsoft.com")
+  # runSemanticModel1 = MSFabricRunSemanticModelRefreshOperator(
+  #   task_id="run_semantic_model_refresh",
+  #   fabric_conn_id="fabric-powerbi",
+  #   workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
+  #   item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
+  #   timeout=60 * 10, #10 minutes
+  #   deferrable=False,
+  #   api_host="https://dailyapi.fabric.microsoft.com")
 
-  runSemanticModel2 = MSFabricRunSemanticModelRefreshOperator(
-    task_id="run_semantic_model_refresh2",
-    fabric_conn_id="fabric-powerbi",
-    workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
-    item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
-    timeout=60 * 10, #10 minutes
-    deferrable=True,
-    api_host="https://dailyapi.fabric.microsoft.com")
+  # runSemanticModel2 = MSFabricRunSemanticModelRefreshOperator(
+  #   task_id="run_semantic_model_refresh2",
+  #   fabric_conn_id="fabric-powerbi",
+  #   workspace_id="4358996c-23ee-4c85-8728-df1825fcc196",
+  #   item_id="2dc933ab-ffd4-46f4-ba1a-27cb1219a20f",
+  #   timeout=60 * 10, #10 minutes
+  #   deferrable=True,
+  #   api_host="https://dailyapi.fabric.microsoft.com")
 
   # Notebook
   runNotebook1 = MSFabricRunJobOperator(

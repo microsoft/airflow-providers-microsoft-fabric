@@ -49,7 +49,7 @@ class BaseFabricRunItemHook:
             raise
 
     @abstractmethod
-    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition, item_name: str) -> RunItemTracker: ...
+    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker: ...
 
     @abstractmethod
     async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus: ...
@@ -79,15 +79,7 @@ class BaseFabricRunItemHook:
             item.workspace_id, item.item_id, item.item_type, 
         )
 
-        # Try to get item name (optional)
-        item_name = None
-        try:
-            item_metadata = await self.get_item_details(item)
-            item_name = item_metadata.get("displayName")
-        except Exception as e:
-            self.log.warning("Failed to get item metadata: %s", str(e))
-
-        tracker = await self.run_item(self.conn, item, item_name if item_name else "Unknown Item Name")
+        tracker = await self.run_item(self.conn, item)
 
         return tracker
 
@@ -104,8 +96,8 @@ class BaseFabricRunItemHook:
 
         # if tracker contains an output or timeout == 0, run_item completed with a 200
         # in case of failures, the run_item should raise an exception
-        if not tracker.output or tracker.run_timeout_in_seconds == 0:
-            self.log.info("Run Completed: run_id %s, has_output: %s", tracker.run_id, bool(tracker.output))
+        if tracker.output or tracker.run_timeout_in_seconds == 0:
+            self.log.info("Run Completed: item_name: %s, run_id: %s, has_output: %s, run_timeout_in_seconds: %s", tracker.item.item_name, tracker.run_id, bool(tracker.output), tracker.run_timeout_in_seconds)
             return RunItemOutput(
                 tracker=tracker,
                 status=MSFabricRunItemStatus.COMPLETED,
@@ -117,7 +109,9 @@ class BaseFabricRunItemHook:
         start_polling_time = tracker.start_time + timedelta(seconds=tracker.retry_after.total_seconds()) if tracker.retry_after else datetime.now()
 
         self.log.info(
-            "Waiting for completion - start_time: %s, start_polling_time: %s, timeout_time: %s, location_url: %s",
+            "Waiting for completion - item_name: %s, run_id: %s, start_time: %s, start_polling_time: %s, timeout_time: %s, location_url: %s",
+            tracker.item.item_name,
+            tracker.run_id,
             tracker.start_time.isoformat(),
             start_polling_time.isoformat(),
             timeout_time.isoformat(),
@@ -182,10 +176,19 @@ class BaseFabricRunItemHook:
                 self.log.warning("Error closing connection: %s", str(e))
 
 
-    async def get_item_details(self, item: ItemDefinition) -> dict:
-        self.log.debug("Getting item details - workspace_id: %s, item_id: %s", item.workspace_id, item.item_id)
-        response = await self.conn.request(
-            "GET", 
-            f"https://api.fabric.microsoft.com/v1/workspaces/{item.workspace_id}/items/{item.item_id}", 
-            "https://api.fabric.microsoft.com/.default")
-        return response["body"]
+    async def get_item_name(self, item: ItemDefinition) -> str:
+
+        try:
+            self.log.debug("Getting item details - workspace_id: %s, item_id: %s", item.workspace_id, item.item_id)
+            response = await self.conn.request(
+                "GET", 
+                f"https://api.fabric.microsoft.com/v1/workspaces/{item.workspace_id}/items/{item.item_id}", 
+                "https://api.fabric.microsoft.com/.default")
+            body = response["body"]
+            name = body.get("displayName", "Unknown")
+            return name
+
+        except Exception as e:
+            self.log.warning("Failed to get item metadata, name won't be available: %s", str(e))
+            return "Unknown"
+

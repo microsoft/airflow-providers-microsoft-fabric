@@ -90,7 +90,7 @@ class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
             self.log.error("Failed to initialize MS Fabric Job Scheduler Hook: %s", str(e))
             raise
 
-    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition, item_name: str) -> RunItemTracker:
+    async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker:
         """
         Start a run for a user data function. 
         Based off this documentation: https://learn.microsoft.com/en-us/fabric/data-engineering/user-data-functions/tutorial-invoke-from-python-app

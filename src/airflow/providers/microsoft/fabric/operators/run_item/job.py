@@ -40,7 +40,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         item_id: str,
         job_type: str,
         timeout: int = 60 * 60,   # 1 hour
-        check_interval: int = 5,
+        check_interval: int = 30,
         deferrable: bool = True,
         job_params: dict | None = None,
         api_host: str = "https://api.fabric.microsoft.com",

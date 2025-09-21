@@ -42,7 +42,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         timeout: int = 60 * 60,   # 1 hour
         check_interval: int = 30,
         deferrable: bool = True,
-        job_params: dict | None = None,
+        job_params: str = "",
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://api.fabric.microsoft.com/.default",
         wait_for_termination = True,
@@ -56,7 +56,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         self.timeout = timeout
         self.check_interval = check_interval
         self.deferrable = deferrable
-        self.job_params = job_params or {}
+        self.job_params = job_params or ""
         self.api_host = api_host
         self.scope = scope
         self.wait_for_termination = wait_for_termination # do not document this, available for backwards compatibility only

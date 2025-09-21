@@ -11,7 +11,7 @@ class JobSchedulerConfig(RunItemConfig):
     # API configuration parameters
     api_host: str = "https://api.fabric.microsoft.com"
     api_scope: str = "https://api.fabric.microsoft.com/.default"
-    job_params: Optional[dict] = None
+    job_params: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         # Base handles fabric_conn_id/timeout/poll and drops tenacity_retry
@@ -102,16 +102,20 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             "Starting item run - workspace_id: %s, item_id: %s, item_type: %s",
             item.workspace_id, item.item_id, item.item_type
         )
+        #self.log.info("Job parameters: %s", self.config.job_params) # may contain sensitive data
 
         # Use api_host from config instead of hardcoded URL
-        url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"
-        
-        # Use job_params from config
-        job_params = self.config.job_params
-        body = {"executionData": {"parameters": job_params}} if job_params else {}
+        url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"    
 
         # Use api_scope from config instead of hardcoded scope
-        response = await connection.request("POST", url, self.config.api_scope, json=body)    
+        # send data and content-type = json instead of json= to avoid double encoding
+        response = await connection.request(
+            "POST",
+            url,
+            self.config.api_scope,
+            data=self.config.job_params,   # JSON string
+            headers={"Content-Type": "application/json"}
+        )
 
         headers = response.get("headers", {})
         location = headers.get("Location")

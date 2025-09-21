@@ -52,7 +52,7 @@ class MSFabricItemLink(BaseOperatorLink):
             return ""
 
         if item_type == "RunNotebook":
-            return f"{base_url}/groups/{workspace_id}/synapsenotebooks/{item_id}"
+            return f"{base_url}/workloads/de-ds/sparkmonitor/{item_id}/{run_id}"
 
         elif item_type == "Pipeline" and item_name:
             return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}"

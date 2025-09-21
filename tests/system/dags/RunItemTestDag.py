@@ -3,6 +3,8 @@ from airflow import DAG
 from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunJobOperator
 from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunUserDataFunctionOperator
 from airflow.providers.microsoft.fabric.operators.run_item import MSFabricRunSemanticModelRefreshOperator
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricNotebookJobParameters
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricPipelineJobParameters
 
 with DAG(
   dag_id="ci_pipeline_dag",
@@ -36,8 +38,10 @@ with DAG(
     item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
     job_type="RunNotebook",
     timeout=60 * 10, #10 minutes
-    #job_params={"sleep_minutes": "5"}, not yet supported by the API
-    deferrable=True
+    deferrable=True,
+    job_params= MSFabricNotebookJobParameters()
+        .set_parameter("sleep_seconds", 40, "int")
+        .to_json()
   )
 
   runNotebook2 = MSFabricRunJobOperator(
@@ -59,6 +63,10 @@ with DAG(
     job_type="Pipeline",
     timeout=60 * 10, #10 minutes
     deferrable=True,
+    job_params= MSFabricPipelineJobParameters()
+        .set_parameter("SleepInSeconds", 45)
+        .set_parameter("Message", "Sleeping")
+        .to_json()
   )
 
   runPipeline2 = MSFabricRunJobOperator(

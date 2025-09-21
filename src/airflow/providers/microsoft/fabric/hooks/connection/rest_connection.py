@@ -145,24 +145,26 @@ class MSFabricRestConnection(BaseHook):
 
         :param method: HTTP method (GET, POST, etc.)
         :param url: Request URL
-        :param kwargs: Additional arguments for the request (currently unused)
+        :param kwargs: Additional arguments for the request (e.g. headers, json, data)
         :return: Parsed response data from HttpClient
-        """       
+        """
         if self.http_client is None:
             raise AirflowException("HTTP client has been closed. Cannot make request.")
-        
-        # Get authentication headers
-        headers = self.get_headers(token_scope)
-                
-        # Delegate to HttpClient
+
+        # Base auth headers from token
+        auth_headers = self.get_headers(token_scope)
+
+        # Merge with user-provided headers (if any)
+        user_headers = kwargs.pop("headers", {}) or {}
+        merged_headers = {**auth_headers, **user_headers}
+
         response_data = await self.http_client.make_request_json(
             method=method,
             url=url,
-            headers=headers,
+            headers=merged_headers,
             tenacity_retry=self.tenacity_retry,
             **kwargs
         )
-        
         return response_data
 
     async def close(self):

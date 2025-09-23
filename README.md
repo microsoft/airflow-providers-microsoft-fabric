@@ -8,9 +8,9 @@ A Python package that helps Data and Analytics engineers trigger run on demand j
 ## How to Use
 
 ### Install the Plugin 
-Pypi package: https://pypi.org/project/apache-airflow-microsoft-fabric-plugin/
+Pypi package: https://pypi.org/project/apache-airflow-microsoft-fabric/
 ```bash 
-pip install apache-airflow-microsoft-fabric-plugin
+pip install apache-airflow-microsoft-fabric
 ```
 
 ### Prerequisities

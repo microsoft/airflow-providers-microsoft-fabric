@@ -5,7 +5,7 @@ import logging
 import re
 import asyncio
 from dataclasses import dataclass, field
-from typing import Optional, Mapping, Dict, Any, Tuple
+from typing import Optional, Mapping, Dict, Any, Tuple, NoReturn
 
 import aiohttp
 from aiohttp import ClientResponseError
@@ -42,115 +42,137 @@ class HttpClient:
     ) -> aiohttp.ClientResponse:
         """
         Core HTTP request method that handles retries and returns raw response.
-        
-        This method focuses on HTTP mechanics: making requests, handling retries,
-        and returning the raw aiohttp.ClientResponse without consuming its payload.
-        
-        Returns: aiohttp.ClientResponse (unconsumed)
         """
-        
-        # Track retry attempts for better logging
         attempt_count = 0
 
         async def _attempt() -> aiohttp.ClientResponse:
-            
             nonlocal attempt_count
             attempt_count += 1
-            # Get retry information from tenacity_retry if available
-            max_attempts = getattr(tenacity_retry.stop, 'max_attempt_number', 'unknown')
+            max_attempts = getattr(tenacity_retry.stop, "max_attempt_number", "unknown")
 
-            # Get session
+            # Prepare session and headers
             session = await self._get_session()
-            
-            # Add Prepare Common Headers
-            request_headers = headers or {}
-            request_headers = dict(request_headers)  # Make a copy to avoid modifying original            
-            if 'referer' not in (k.lower() for k in request_headers.keys()):
-                request_headers['Referer'] = "apache-airflow-providers-microsoft-fabric"
-            
-            # Make request and fetch request id for tracking
+            request_headers = dict(headers or {})
+            if "referer" not in (k.lower() for k in request_headers.keys()):
+                request_headers["Referer"] = "apache-airflow-providers-microsoft-fabric"
+
+            # Execute request
             resp = await session.request(method.upper(), url, headers=request_headers, **kwargs)
             req_id = self.get_request_id(resp.headers)
-            
-            # Retryable statuses -> raise ClientResponseError with enhanced logging
-            if resp.status in self.RETRYABLE_STATUSES:                
-                self.log.warning(
-                    "HTTP Request Failed [Status: %s, request_id: %s, attempt: %d/%d]: %s %s",
-                    resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
-                )
-                self.log.warning(resp.headers)
-                
-                # For 429 responses, check for Retry-After header and wait accordingly
-                # This seems specially important for semantic model refresh. 
-                if resp.status == 429:
-                    retry_after_header = resp.headers.get('Retry-After') or resp.headers.get('retry-after')
-                    if retry_after_header:
-                        try:
-                            retry_after_seconds = int(retry_after_header)
-                            self.log.info(
-                                "HTTP 429 response includes Retry-After: %d seconds. Waiting before retry.",
-                                retry_after_seconds
-                            )
-                            # Read and close response before waiting
-                            await resp.text()
-                            resp.close()
-                            
-                            # Wait for the specified time before letting tenacity handle the retry
-                            await asyncio.sleep(retry_after_seconds)
-                            
-                            # Now raise the exception for tenacity to handle
-                            raise ClientResponseError(
-                                request_info=resp.request_info,
-                                history=resp.history,
-                                status=resp.status,
-                                message=f"HTTP 429 with Retry-After: {retry_after_seconds}s ({method} {url.split('?',1)[0]}) req_id={req_id}",
-                                headers=resp.headers,
-                            )
-                        except (ValueError, TypeError):
-                            self.log.warning("Invalid Retry-After header value: %s", retry_after_header)
-                            # Fall through to default retry behavior
-                
-                # Read and close response before raising (to avoid ResourceWarning)
-                await resp.text()
-                resp.close()
-                raise ClientResponseError(
-                    request_info=resp.request_info,
-                    history=resp.history,
-                    status=resp.status,
-                    message=f"Retryable HTTP {resp.status} ({method} {url.split('?',1)[0]}) req_id={req_id}",
-                    headers=resp.headers,
-                )
 
-            # Non-retryable 4xx -> raise AirflowException (enhanced logging)
-            if 400 <= resp.status < 500:
-                self.log.error(
-                    "HTTP Request Failed [Status: %s, request_id: %s, attempt: %d/%d (Non Retryable Error)]: %s %s",
-                    resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
+            # Success path: return unconsumed response
+            if 200 <= resp.status < 300:
+                self.log.info(
+                    "HTTP %s %s [status=%d, req_id=%s, attempt=%d/%s]",
+                    method.upper(), url, resp.status, req_id, attempt_count, max_attempts
                 )
-                # Read and close response before raising (to avoid ResourceWarning)
-                body_text = await resp.text()
-                resp.close()
-                raise AirflowException(
-                    f"HTTP {resp.status} calling {method} {url.split('?',1)[0]} (req_id={req_id})"
-                )
+                return resp
 
-            # Log successful request on first attempt or after retries
-            self.log.info(
-                "HTTP Request [Status: %s, request_id:%s, attempt:%d/%d]: %s %s",
-                resp.status, req_id, attempt_count, max_attempts, method.upper(), url.split('?',1)[0]
+            # Error path: consolidate error handling and logging
+            await self._handle_error_response(
+                resp, method, url, req_id, attempt_count, max_attempts
             )
 
-            # Return successful response (unconsumed)
-            return resp
-
-        # Apply tenacity retry using AsyncRetrying iteration pattern
+        # Drive tenacity retry loop
         async for attempt in tenacity_retry:
             with attempt:
                 result = await _attempt()
                 return result
-        
-        # This should never be reached, but satisfies type checker
+
         raise AirflowException("All retry attempts exhausted")
+
+    async def _handle_error_response(
+        self,
+        resp: aiohttp.ClientResponse,
+        method: str,
+        url: str,
+        req_id: Optional[str],
+        attempt_count: int,
+        max_attempts: str,
+    ) -> NoReturn:
+        """
+        Consolidated error handling for HTTP responses.
+        
+        - Reads response body once for debugging info
+        - Handles 429 with Retry-After sleep
+        - Logs detailed error information including response body
+        - Raises appropriate exception type based on retry policy
+        """
+        # Capture response context before consuming
+        request_info = resp.request_info
+        history = resp.history
+        status = resp.status
+        retry_after = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+
+        # Read response body for debugging (do this once)
+        try:
+            body_text = await resp.text()
+        except Exception as e:
+            body_text = f"<error reading response body: {e}>"
+        finally:
+            resp.close()
+
+        # Create detailed error context for logging
+        error_context = {
+            "method": method.upper(),
+            "url": url,
+            "status": status,
+            "req_id": req_id,
+            "attempt": f"{attempt_count}/{max_attempts}",
+            "retry_after": retry_after,
+            "response_body": body_text[:500] + ("..." if len(body_text or "") > 500 else ""),
+            "response_headers": resp.headers,
+        }
+
+        # Handle 429 with sleep as requested
+        if status == 429 and retry_after:
+            try:
+                retry_seconds = int(retry_after)
+                self.log.warning(
+                    "HTTP 429 Rate Limited - sleeping for %d seconds before retry: %s",
+                    retry_seconds,
+                    self._format_error_log(error_context)
+                )
+                await asyncio.sleep(retry_seconds)
+            except (ValueError, TypeError):
+                self.log.warning(
+                    "HTTP 429 with invalid Retry-After header '%s': %s",
+                    retry_after,
+                    self._format_error_log(error_context)
+                )
+
+        # Determine if retryable and log appropriately      
+        if status in self.RETRYABLE_STATUSES:
+            self.log.warning(
+                "HTTP retryable error (will retry): %s",
+                self._format_error_log(error_context)
+            )
+            # Include response body in exception for upstream debugging
+            error_msg = f"HTTP {status} ({method} {url}) req_id={req_id} - {body_text[:200]}"
+            raise ClientResponseError(
+                request_info=request_info,
+                history=history,
+                status=status,
+                message=error_msg,
+                headers=resp.headers,
+            )
+        else:
+            self.log.error(
+                "HTTP non-retryable error (will not retry): %s",
+                self._format_error_log(error_context)
+            )
+            # Include response body in exception for better debugging
+            error_msg = f"HTTP {status} calling {method} {url} (req_id={req_id}) - {body_text[:200]}"
+            raise AirflowException(error_msg)
+
+    def _format_error_log(self, context: Dict[str, Any]) -> str:
+        """Format error context into a readable log message."""
+        return (
+            f"{context['method']} {context['url']} "
+            f"[status={context['status']}, req_id={context['req_id']}, "
+            f"attempt={context['attempt']}, retry_after={context['retry_after']}] "
+            f"Response: {context['response_body']}"
+        )
 
     async def make_request_json(
         self,

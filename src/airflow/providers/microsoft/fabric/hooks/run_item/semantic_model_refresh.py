@@ -170,6 +170,11 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
         match sourceStatus:
             case "InProgress":
                 return MSFabricRunItemStatus.IN_PROGRESS
+            
+            case "Unknown":
+                # Per this documentation, Unknown is reported for in progress, check samples
+                # https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/get-refresh-history
+                return MSFabricRunItemStatus.IN_PROGRESS
 
             case "Completed":
                 return MSFabricRunItemStatus.COMPLETED

@@ -42,4 +42,10 @@ def get_provider_info():
                     "airflow.providers.microsoft.fabric.triggers.run_item.semantic_model_refresh"],
             }
         ],
+        "plugins": [
+            {
+                "name": "fabric_status_plugin",
+                "plugin-class": "airflow.providers.microsoft.fabric.plugins.fabric_status_plugin.FabricStatusPlugin",
+            }
+        ],
     }

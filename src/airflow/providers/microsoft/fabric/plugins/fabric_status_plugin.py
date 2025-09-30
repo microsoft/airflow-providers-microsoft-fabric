@@ -539,4 +539,4 @@ class FabricStatusPlugin(AirflowPlugin):
 
 
 # Export the plugin class
-__all__ = ["FabricStatusPlugin"]
+__all__ = ["FabricStatusPlugin"] 

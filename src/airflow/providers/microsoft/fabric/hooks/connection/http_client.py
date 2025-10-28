@@ -59,12 +59,13 @@ class HttpClient:
             # Execute request
             resp = await session.request(method.upper(), url, headers=request_headers, **kwargs)
             req_id = self.get_request_id(resp.headers)
+            job_id = self.get_job_id(resp.headers)
 
             # Success path: return unconsumed response
             if 200 <= resp.status < 300:
                 self.log.info(
-                    "HTTP %s %s [status=%d, req_id=%s, attempt=%d/%s]",
-                    method.upper(), url, resp.status, req_id, attempt_count, max_attempts
+                    "HTTP %s %s [status=%d, req_id=%s, job_id=%s, attempt=%d/%s]",
+                    method.upper(), url, resp.status, req_id, job_id, attempt_count, max_attempts
                 )
                 return resp
 
@@ -103,6 +104,7 @@ class HttpClient:
         history = resp.history
         status = resp.status
         retry_after = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+        job_id = self.get_job_id(resp.headers)
 
         # Read response body for debugging (do this once)
         try:
@@ -118,6 +120,7 @@ class HttpClient:
             "url": url,
             "status": status,
             "req_id": req_id,
+            "job_id": job_id,
             "attempt": f"{attempt_count}/{max_attempts}",
             "retry_after": retry_after,
             "response_body": body_text[:500] + ("..." if len(body_text or "") > 500 else ""),
@@ -148,7 +151,7 @@ class HttpClient:
                 self._format_error_log(error_context)
             )
             # Include response body in exception for upstream debugging
-            error_msg = f"HTTP {status} ({method} {url}) req_id={req_id} - {body_text[:200]}"
+            error_msg = f"HTTP {status} ({method} {url}) req_id={req_id} job_id={job_id} - {body_text[:200]}"
             raise ClientResponseError(
                 request_info=request_info,
                 history=history,
@@ -162,14 +165,14 @@ class HttpClient:
                 self._format_error_log(error_context)
             )
             # Include response body in exception for better debugging
-            error_msg = f"HTTP {status} calling {method} {url} (req_id={req_id}) - {body_text[:200]}"
+            error_msg = f"HTTP {status} calling {method} {url} (req_id={req_id}, job_id={job_id}) - {body_text[:200]}"
             raise AirflowException(error_msg)
 
     def _format_error_log(self, context: Dict[str, Any]) -> str:
         """Format error context into a readable log message."""
         return (
             f"{context['method']} {context['url']} "
-            f"[status={context['status']}, req_id={context['req_id']}, "
+            f"[status={context['status']}, req_id={context['req_id']}, job_id={context['job_id']}, "
             f"attempt={context['attempt']}, retry_after={context['retry_after']}] "
             f"Response: {context['response_body']}"
         )
@@ -210,12 +213,13 @@ class HttpClient:
             status_code = response.status
             response_headers = dict(response.headers)
             ctype = response_headers.get("Content-Type")
-            req_id = response_headers.get("x-ms-request-id") or response_headers.get("x-request-id")
+            req_id = self.get_request_id(response.headers)
+            job_id = self.get_job_id(response.headers)
 
             # Log detailed request/response at debug level with redaction
             if self.log.isEnabledFor(logging.DEBUG):
                 self.log.debug(self._redactor.preview_response(
-                    method, url, status_code, response_headers, body_text, ctype, req_id
+                    method, url, status_code, response_headers, body_text, ctype, req_id, job_id
                 ))
 
             # Parse JSON with graceful handling of non-JSON responses
@@ -259,6 +263,22 @@ class HttpClient:
             "x-ms-request-id",
             "x-request-id",
             "x-ms-root-activity-id",
+        ):
+            val = lower.get(hdr)
+            if val and str(val).strip():
+                return str(val).strip()
+        return None
+
+    def get_job_id(self, headers: Optional[Mapping[str, Any]]) -> Optional[str]:
+        """
+        Return the first non-empty job id found in headers.
+        Case-insensitive check across known job header names used by Fabric.
+        """
+        if not headers:
+            return None
+        # Normalize keys to lowercase for case-insensitive lookup
+        lower = {k.lower(): v for k, v in headers.items()}
+        for hdr in (
             "x-ms-job-id",
             "x-job-id",
         ):
@@ -300,6 +320,7 @@ class _HttpRedactor:
         body_text: Optional[str],
         content_type: Optional[str],
         request_id: Optional[str] = None,
+        job_id: Optional[str] = None,
     ) -> str:
         safe_url = self._safe_url(url)
         redacted_headers = self._redact_headers(headers)
@@ -309,6 +330,8 @@ class _HttpRedactor:
             parts.append(f"-> {status}")
         if request_id:
             parts.append(f"req_id={request_id}")
+        if job_id:
+            parts.append(f"job_id={job_id}")
         parts.append(f"headers={redacted_headers}")
         parts.append(f"body_preview={body_preview}")
         return " ".join(parts)

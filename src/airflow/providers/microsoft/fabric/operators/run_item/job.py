@@ -31,7 +31,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         elif job_type == "RunNotebook" or job_type == "Notebook":
             return "RunNotebook" # as defined in job api
         elif job_type == "RunSparkJob" or job_type == "SparkJob":
-            return "SparkJob"
+            return "sparkjob"
         return job_type
 
     # Keep template-able primitives as top-level attributes
@@ -65,7 +65,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         job_params: str = "",
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://api.fabric.microsoft.com/.default",
-        link_base_url: str = "https://fabric.microsoft.com",
+        link_base_url: str = "https://app.fabric.microsoft.com",
         wait_for_termination = True,
         **kwargs,
     ) -> None:

@@ -30,6 +30,17 @@ with DAG(
   #   deferrable=True,
   #   api_host="https://dailyapi.fabric.microsoft.com")
 
+# SparkJon
+  runSparkJob = MSFabricRunJobOperator(
+    task_id="runSparkJobTask1_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="dded0af7-bb56-493b-a40b-934a39e6f01e",
+    job_type="RunSparkJob",
+    timeout=60 * 10, #10 minutes
+    deferrable=True,
+  )
+
   # Notebook
   runNotebook1 = MSFabricRunJobOperator(
     task_id="runNotebookTask1_deferred",

@@ -43,7 +43,7 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         parameters: Optional[dict] | None = None,
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://analysis.windows.net/powerbi/api/.default",
-        link_base_url: str = "https://fabric.microsoft.com",
+        link_base_url: str = "https://app.fabric.microsoft.com",
         **kwargs,
     ) -> None:
         # Store raw values so Airflow can template them later

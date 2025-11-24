@@ -34,16 +34,22 @@ class BaseFabricRunItemTrigger(BaseTrigger):
             return
 
         try:
-            # Initialize hook and tracker using specialized implementation
-            
+            # Initialize hook and tracker using specialized implementation            
             self.log.info(
-                "Starting trigger polling - start_time: %s, retry_after: %s, run_timeout_in_seconds: %s",
+                "Starting trigger polling - workspace_id: %s, item_id: %s, run_id: %s, start_time: %s, retry_after: %s, run_timeout_in_seconds: %s",
+                tracker.item.workspace_id, tracker.item.item_id, tracker.run_id,
                 tracker.start_time.isoformat() if tracker.start_time else "None",
                 tracker.retry_after, tracker.run_timeout_in_seconds
             )
             
             output = await hook.wait_for_completion(tracker=tracker)
             
+            self.log.info(
+                "Completed trigger polling - workspace_id: %s, item_id: %s, run_id: %s, start_time: %s",
+                tracker.item.workspace_id, tracker.item.item_id, tracker.run_id,
+                tracker.start_time.isoformat() if tracker.start_time else "None"
+            )
+
             yield TriggerEvent(output.to_dict())
 
         except Exception as error:

@@ -150,6 +150,25 @@ class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:
         raise MSFabricRunItemException("User Data Function does not support cancellation.")
+
+    async def generate_deep_link(self, tracker: RunItemTracker, base_url: str = "https://app.fabric.microsoft.com") -> str:
+        """
+        Generate deep links for UserDataFunction items.
+        Uses the same URL patterns as MSFabricItemLink.
+        
+        :param tracker: RunItemTracker with run details
+        :param base_url: Base URL for the Fabric portal
+        :return: Deep link URL to the user data function
+        """
+        item_type = tracker.item.item_type
+        workspace_id = tracker.item.workspace_id
+        item_id = tracker.item.item_id
+
+        if not workspace_id or not item_id or item_type != "UserDataFunction":
+            return ""
+
+        # Use the same URL pattern as MSFabricItemLink
+        return f"{base_url}/groups/{workspace_id}/userdatafunctions/{item_id}"
         
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:
 

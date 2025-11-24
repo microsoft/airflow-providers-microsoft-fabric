@@ -155,6 +155,29 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
             self.log.warning("Cancel failed for %s - ERROR: %s", tracker.location_url, e)
             return False
 
+    async def generate_deep_link(self, tracker: RunItemTracker, base_url: str = "https://app.fabric.microsoft.com") -> str:
+        """
+        Generate deep links for PowerBISemanticModel items.
+        Uses the same URL patterns as MSFabricItemLink.
+        
+        :param tracker: RunItemTracker with run details
+        :param base_url: Base URL for the Fabric portal
+        :return: Deep link URL to the semantic model refresh
+        """
+        item_type = tracker.item.item_type
+        workspace_id = tracker.item.workspace_id
+        item_id = tracker.item.item_id
+        run_id = tracker.run_id
+
+        if not workspace_id or not item_id or item_type != "PowerBISemanticModel":
+            return ""
+
+        # Use the same URL patterns as MSFabricItemLink
+        if run_id:
+            return f"{base_url}/groups/{workspace_id}/datasets/{item_id}/refreshdetails/{run_id}"
+        else:
+            return f"{base_url}/onelake/details/dataset/{item_id}/overview"
+
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:
         """
         Map Power BI status strings to your enum.

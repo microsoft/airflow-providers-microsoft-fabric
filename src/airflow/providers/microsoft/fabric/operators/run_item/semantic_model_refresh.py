@@ -29,8 +29,9 @@ class MSFabricRunSemanticModelRefreshOperator(BaseFabricRunItemOperator):
         "job_params",
         "api_host",
         "scope",
+        "link_base_url",
     )
-    template_fields_renderers = {"job_params": "json"}  # optional
+    template_fields_renderers = {"job_params": "json"}
 
     operator_extra_links = (MSFabricItemLink(),)
 
@@ -46,6 +47,7 @@ class MSFabricRunSemanticModelRefreshOperator(BaseFabricRunItemOperator):
         job_params: dict | None = None,
         api_host: str = "https://api.powerbi.com",
         scope: str = "https://analysis.windows.net/powerbi/api/.default",
+        link_base_url: str = "https://fabric.microsoft.com",
         **kwargs,
     ) -> None:
         # Store raw values so Airflow can template them later
@@ -58,6 +60,7 @@ class MSFabricRunSemanticModelRefreshOperator(BaseFabricRunItemOperator):
         self.job_params = job_params or {}
         self.api_host = api_host
         self.scope = scope
+        self.link_base_url = link_base_url
 
         if (check_interval < 30):
             self.log.warning("check_interval interval is too short, which can lead to throttling.")

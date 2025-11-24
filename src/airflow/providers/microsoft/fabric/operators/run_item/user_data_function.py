@@ -27,8 +27,9 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         "parameters",
         "api_host",
         "scope",
+        "link_base_url",
     )
-    template_fields_renderers = {"parameters": "json"}  # optional
+    template_fields_renderers = {"parameters": "json"}
 
     operator_extra_links = (MSFabricItemLink(),)
 
@@ -42,6 +43,7 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         parameters: Optional[dict] | None = None,
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://analysis.windows.net/powerbi/api/.default",
+        link_base_url: str = "https://fabric.microsoft.com",
         **kwargs,
     ) -> None:
         # Store raw values so Airflow can template them later
@@ -54,6 +56,7 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         self.parameters = parameters or {}
         self.api_host = api_host
         self.scope = scope
+        self.link_base_url = link_base_url
 
         # Build initial item definition
         item = ItemDefinition(

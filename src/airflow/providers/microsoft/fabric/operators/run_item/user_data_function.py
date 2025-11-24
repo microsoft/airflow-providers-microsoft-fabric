@@ -55,7 +55,19 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         self.api_host = api_host
         self.scope = scope
 
-        # Build initial dataclasses from the *current* values
+        # Build initial item definition
+        item = ItemDefinition(
+            workspace_id=self.workspace_id,
+            item_type=self.job_type,
+            item_id=self.item_id,
+            item_name=self.item_name,
+        )
+
+        # Pass required args to the base class (no hook needed anymore)
+        super().__init__(item=item, **kwargs)
+
+    def create_hook(self) -> MSFabricRunUserDataFunctionHook:
+        """Create and return the hook instance."""
         config = UserDataFunctionConfig(
             fabric_conn_id=self.fabric_conn_id,
             timeout_seconds=self.timeout,
@@ -64,42 +76,19 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
             api_scope=self.scope,
             parameters=self.parameters,
         )
-        item = ItemDefinition(
-            workspace_id=self.workspace_id,
-            item_type=self.job_type,
-            item_id=self.item_id,
-            item_name=self.item_name,
-        )
-
-        # If your hook needs more than conn_id, add it here
-        hook = MSFabricRunUserDataFunctionHook(config=config)
-
-        # Pass required args to the base class (fixes the missing kwargs error)
-        super().__init__(hook=hook, item=item, **kwargs)
-
-        # Keep the config around if you want to pass it to triggers, etc.
-        self.config = config
+        return MSFabricRunUserDataFunctionHook(config=config)
 
     # Optional but recommended: ensure post-templating objects are rebuilt
     def render_template_fields(self, context, jinja_env=None):
         super().render_template_fields(context, jinja_env=jinja_env)
 
-        # Rebuild objects with the *rendered* values so they’re up to date
-        self.config = UserDataFunctionConfig(
-            fabric_conn_id=self.fabric_conn_id,
-            timeout_seconds=self.timeout,
-            poll_interval_seconds=0,
-            api_host=self.api_host,
-            api_scope=self.scope,
-            parameters=self.parameters,
-        )
+        # Rebuild item with the *rendered* values so they're up to date
         self.item = ItemDefinition(
             workspace_id=self.workspace_id,
             item_type=self.job_type,
             item_id=self.item_id,
             item_name=self.item_name,
         )
-        self.hook = MSFabricRunUserDataFunctionHook(self.config)
 
     def create_trigger(self, tracker: RunItemTracker) -> BaseFabricRunItemTrigger:
         """Create and return the FabricHook (cached)."""
@@ -110,4 +99,6 @@ class MSFabricRunUserDataFunctionOperator(BaseFabricRunItemOperator):
         self.log.info("Starting User Data Function Run - workspace_id: %s, job_type: %s, item_id: %s",
                       self.item.workspace_id, self.item.item_type, self.item.item_id)
 
-        asyncio.run(self._execute_core(context, False))
+        # Create hook at execution time
+        hook = self.create_hook()
+        asyncio.run(self._execute_core(context, False, hook))

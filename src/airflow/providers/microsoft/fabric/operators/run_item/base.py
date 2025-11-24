@@ -53,6 +53,9 @@ class MSFabricItemLink(BaseOperatorLink):
 
         if item_type == "RunNotebook":
             return f"{base_url}/workloads/de-ds/sparkmonitor/{item_id}/{run_id}"
+        
+        if item_type == "sparkjob":
+            return f"{base_url}/workloads/de-ds/sparkmonitor/{item_id}/{run_id}"
 
         elif item_type == "Pipeline" and item_name:
             return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}"
@@ -74,11 +77,14 @@ class BaseFabricRunItemOperator(BaseOperator):
 
     operator_extra_links = (MSFabricItemLink(),)
     
-    def __init__(self, *, hook: BaseFabricRunItemHook, item: ItemDefinition, **kwargs) -> None:
+    def __init__(self, *, item: ItemDefinition, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.hook = hook
         self.item = item
 
+    @abstractmethod
+    def create_hook(self) -> BaseFabricRunItemHook:
+        """Create and return a hook instance. Called during execution."""
+        ...
 
     @abstractmethod
     def execute(self, context: Context) -> None: ...
@@ -86,13 +92,13 @@ class BaseFabricRunItemOperator(BaseOperator):
     @abstractmethod
     def create_trigger(self, tracker: RunItemTracker) -> BaseFabricRunItemTrigger: ...
 
-    async def _execute_core(self, context: Context, deferrable: bool, wait_for_termination: bool = True) -> None:
+    async def _execute_core(self, context: Context, deferrable: bool, hook: BaseFabricRunItemHook, wait_for_termination: bool = True) -> None:
         """Core execution logic that works for both deferrable and synchronous modes."""
         tracker = None
 
         try:
             # Initialize the run using the hook and get RunItemTracker object
-            tracker = await self.hook.initialize_run(self.item)
+            tracker = await hook.initialize_run(self.item)
                        
             self.log.info(
                 "Run initialized successfully - workspace_id: %s, item_id: %s, item_name: %s, run_id: %s, location: %s, start_time: %s, retry_after: %s, timeout: %ds",
@@ -129,7 +135,7 @@ class BaseFabricRunItemOperator(BaseOperator):
                 # Wait for completion synchronously in the same event loop
                 self.log.warning(
                     "Waiting for task completion synchronously, in operator. Discouraged for long running tasks as workers may restart.")
-                output = await self.hook.wait_for_completion(tracker=tracker)
+                output = await hook.wait_for_completion(tracker=tracker)
 
                 # Handle completion using the centralized method
                 self.handle_complete(context=context, output=output)
@@ -158,9 +164,9 @@ class BaseFabricRunItemOperator(BaseOperator):
             
         finally:
             # Clean up resources for synchronous execution
-            if not deferrable and self.hook:
+            if not deferrable and hook:
                 try:
-                    await self.hook.close()
+                    await hook.close()
                 except Exception as e:
                     self.log.warning("Failed to close hook connections: %s", str(e))
 
@@ -195,7 +201,8 @@ class BaseFabricRunItemOperator(BaseOperator):
             raise MSFabricRunItemException("Output not available, check execution logs for more details.")
 
         status = output.status or MSFabricRunItemStatus.FAILED
-        is_success = self.hook.is_run_successful(status)
+        # Use static method for status checking
+        is_success = BaseFabricRunItemHook.is_run_successful(status)
 
         # push xcom
         ti = context.get("ti")

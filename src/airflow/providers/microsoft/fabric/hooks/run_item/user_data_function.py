@@ -69,7 +69,7 @@ class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
         self.config = config
 
         self.log.info(
-            "Initializing MS Fabric Job Scheduler Hook - conn_id: %s, poll interval: %s, timeout: %s, api_host: %s, api_scope: %s",
+            "Initializing MS Fabric User Data Function Hook - conn_id: %s, poll interval: %s, timeout: %s, api_host: %s, api_scope: %s",
             config.fabric_conn_id, 
             config.poll_interval_seconds, 
             config.timeout_seconds,
@@ -87,7 +87,7 @@ class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
                 config.fabric_conn_id, config.poll_interval_seconds, config.timeout_seconds, config.api_host, config.api_scope)
 
         except Exception as e:
-            self.log.error("Failed to initialize MS Fabric Job Scheduler Hook: %s", str(e))
+            self.log.error("Failed to initialize MS Fabric User Data Function Hook: %s", str(e))
             raise
 
     async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker:

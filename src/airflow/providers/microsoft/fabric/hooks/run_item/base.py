@@ -31,7 +31,6 @@ class BaseFabricRunItemHook:
         runItemConfig: RunItemConfig
     ):
         self.log = logging.getLogger(__name__)
-
         self.runItemConfig = runItemConfig
 
         self.log.debug("Initializing MS Fabric Run Item Hook")
@@ -41,7 +40,7 @@ class BaseFabricRunItemHook:
                 runItemConfig.fabric_conn_id,
                 tenacity_retry=runItemConfig.tenacity_retry,
             )
-            self.log.info("Successfully initialized MSFabricRunItemHook- conn_id: %s, poll interval (secs): %s, timeout (secs): %s, retry_config: %s",
+            self.log.info("Successfully initialized MSFabricRunItemHook - conn_id: %s, poll interval (secs): %s, timeout (secs): %s, retry_config: %s",
             runItemConfig.fabric_conn_id, runItemConfig.poll_interval_seconds, runItemConfig.timeout_seconds,  runItemConfig.tenacity_retry
         )
         except Exception as e:
@@ -164,7 +163,8 @@ class BaseFabricRunItemHook:
                     failed_reason=f"Timeout waiting for run to complete after {elapsed:.1f} seconds."
                 )            
         
-    def is_run_successful(self, status: MSFabricRunItemStatus) -> bool:
+    @staticmethod
+    def is_run_successful(status: MSFabricRunItemStatus) -> bool:
         return status == MSFabricRunItemStatus.COMPLETED
 
     async def close(self):

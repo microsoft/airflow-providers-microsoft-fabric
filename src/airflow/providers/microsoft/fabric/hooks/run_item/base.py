@@ -56,6 +56,18 @@ class BaseFabricRunItemHook:
     @abstractmethod
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> bool: ...
 
+    @abstractmethod
+    async def generate_deep_link(self, tracker: RunItemTracker, base_url: str = "https://app.fabric.microsoft.com") -> str:
+        """
+        Generate a deep link to the Fabric item run in the portal.
+        Each subclass must implement item-type-specific link generation.
+        
+        :param tracker: RunItemTracker with run details
+        :param base_url: Base URL for the Fabric portal
+        :return: Deep link URL to the item run
+        """
+        ...
+
 
     async def initialize_run(
         self, 

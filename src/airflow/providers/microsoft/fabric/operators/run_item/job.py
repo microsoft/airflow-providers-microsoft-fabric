@@ -13,7 +13,26 @@ if TYPE_CHECKING:
     from airflow.utils.context import Context
 
 class MSFabricRunJobOperator(BaseFabricRunItemOperator):
-    """Run a Fabric job via the Job Scheduler."""
+    """Run a Fabric job via the Job Scheduler.
+    
+    Supported job types:
+    - "RunNotebook": Execute a Fabric notebook
+    - "RunPipeline" or "Pipeline": Execute a Fabric data pipeline
+    - "RunSparkJob" or "SparkJob": Execute a Spark job definition
+    """
+
+    @staticmethod
+    def _map_job_type_for_api(job_type: str) -> str:
+        """Map user-friendly job type names to API-compatible names."""
+        """Updates this mapping should be reflected in hook generate_deep_link method."""
+        """List all suported names for clarity"""
+        if job_type == "RunPipeline" or job_type == "Pipeline":
+            return "Pipeline"
+        elif job_type == "RunNotebook" or job_type == "Notebook":
+            return "RunNotebook" # as defined in job api
+        elif job_type == "RunSparkJob" or job_type == "SparkJob":
+            return "SparkJob"
+        return job_type
 
     # Keep template-able primitives as top-level attributes
     template_fields: Sequence[str] = (
@@ -27,8 +46,9 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         "job_params",
         "api_host",
         "scope",
+        "link_base_url",
     )
-    template_fields_renderers = {"job_params": "json"}  # optional
+    template_fields_renderers = {"job_params": "json"}
 
     operator_extra_links = (MSFabricItemLink(),)
 
@@ -45,6 +65,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         job_params: str = "",
         api_host: str = "https://api.fabric.microsoft.com",
         scope: str = "https://api.fabric.microsoft.com/.default",
+        link_base_url: str = "https://fabric.microsoft.com",
         wait_for_termination = True,
         **kwargs,
     ) -> None:
@@ -59,18 +80,13 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         self.job_params = job_params or ""
         self.api_host = api_host
         self.scope = scope
+        self.link_base_url = link_base_url
         self.wait_for_termination = wait_for_termination # do not document this, available for backwards compatibility only
 
-        # deal with bad config in UI template
-        if job_type == "RunPipeline":
-            self.job_type = "Pipeline"
-        if job_type == "RunSparkJob":
-            self.job_type = "sparkjob"
-
-        # Build initial item definition
+        # Build initial item definition with API-compatible job type
         item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type=self.job_type,
+            item_type=self._map_job_type_for_api(job_type),
             item_id=self.item_id,
         )
 
@@ -93,10 +109,10 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
     def render_template_fields(self, context, jinja_env=None):
         super().render_template_fields(context, jinja_env=jinja_env)
 
-        # Rebuild item with the *rendered* values so they're up to date
+        # Rebuild item with the *rendered* values and API-compatible job type
         self.item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type=self.job_type,
+            item_type=self._map_job_type_for_api(self.job_type),
             item_id=self.item_id,
         )
 

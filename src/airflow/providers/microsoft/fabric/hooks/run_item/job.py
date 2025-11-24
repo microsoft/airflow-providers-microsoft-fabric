@@ -203,6 +203,38 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             self.log.warning("Failed to cancel run %s for item %s: %s", tracker.run_id, tracker.item.item_id, str(e))
             return False
         
+    async def generate_deep_link(self, tracker: RunItemTracker, base_url: str = "https://app.fabric.microsoft.com") -> str:
+        """
+        Generate deep links for job items: notebooks, pipelines, and spark jobs.
+        Uses the same URL patterns as MSFabricItemLink.
+        
+        :param tracker: RunItemTracker with run details
+        :param base_url: Base URL for the Fabric portal
+        :return: Deep link URL to the job item run
+        """
+        item_type = tracker.item.item_type
+        workspace_id = tracker.item.workspace_id
+        item_id = tracker.item.item_id
+        run_id = tracker.run_id
+        item_name = tracker.item.item_name
+
+        if not workspace_id or not item_id or not run_id or not item_type:
+            return ""
+
+        # Use the same URL patterns as MSFabricItemLink
+        if item_type == "RunNotebook":
+            return f"{base_url}/workloads/de-ds/sparkmonitor/{item_id}/{run_id}"
+        
+        elif item_type == "sparkjob":
+            return f"{base_url}/workloads/de-ds/sparkmonitor/{item_id}/{run_id}"
+
+        elif item_type == "Pipeline" and item_name:
+            return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}"
+
+        else:
+            self.log.warning("Unsupported item type for job hook generate_deep_link: %s", item_type)
+            return ""
+        
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:
 
         if (sourceStatus is None) or (sourceStatus == ""):

@@ -104,10 +104,8 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         )
         #self.log.info("Job parameters: %s", self.config.job_params) # may contain sensitive data
 
-        # Use api_host from config instead of hardcoded URL
         url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"    
 
-        # Use api_scope from config instead of hardcoded scope
         # send data and content-type = json instead of json= to avoid double encoding
         response = await connection.request(
             "POST",

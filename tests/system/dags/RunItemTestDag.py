@@ -90,8 +90,8 @@ with DAG(
     deferrable=False,
   )
 
-  # DBT
-  runDbt = MSFabricRunJobOperator(
+  # DBT Deferred
+  runDbt1 = MSFabricRunJobOperator(
     task_id="runDbtTask_deferred",
     fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
@@ -99,6 +99,17 @@ with DAG(
     job_type="DBT",
     timeout=60 * 10, #10 minutes
     deferrable=True,
+  )
+
+  # DBT Synchronous
+  runDbt2 = MSFabricRunJobOperator(
+    task_id="runDbtTask_sync",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
+    job_type="DBT",
+    timeout=60 * 10, #10 minutes
+    deferrable=False,
   )
 
   # User Function

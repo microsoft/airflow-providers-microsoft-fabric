@@ -104,7 +104,11 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         )
         #self.log.info("Job parameters: %s", self.config.job_params) # may contain sensitive data
 
-        url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"    
+        url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"
+        # if item.item_type == "DataBuildToolJob":
+        #     url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/DataBuildToolJobs/{item.item_id}/jobs/Execute/instances"
+        # else:
+        #     url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"    
 
         # send data and content-type = json instead of json= to avoid double encoding
         response = await connection.request(
@@ -205,7 +209,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         
     async def generate_deep_link(self, tracker: RunItemTracker, base_url: str = "https://app.fabric.microsoft.com") -> str:
         """
-        Generate deep links for job items: notebooks, pipelines, and spark jobs.
+        Generate deep links for job items: notebooks, pipelines, spark jobs, and DBT jobs.
         Uses the same URL patterns as MSFabricItemLink.
         
         :param tracker: RunItemTracker with run details
@@ -233,6 +237,9 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         elif item_type == "Pipeline" and item_name:
             return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/pipelines/{item_name}/{run_id}"
+
+        elif item_type == "DataBuildToolJob":
+            return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/dbtitems/{item_id}/{run_id}"
 
         else:
             self.log.warning("Unsupported item type for job hook generate_deep_link: %s", item_type)

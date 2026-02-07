@@ -19,6 +19,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
     - "RunNotebook": Execute a Fabric notebook
     - "RunPipeline" or "Pipeline": Execute a Fabric data pipeline
     - "RunSparkJob" or "SparkJob": Execute a Spark job definition
+    - "DataBuildToolJob" or "DBT": Execute a DBT job
     """
 
     @staticmethod
@@ -32,6 +33,8 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
             return "RunNotebook" # as defined in job api
         elif job_type == "RunSparkJob" or job_type == "SparkJob":
             return "sparkjob"
+        elif job_type == "DataBuildToolJob" or job_type == "DBT":
+            return "DataBuildToolJob"
         return job_type
 
     # Keep template-able primitives as top-level attributes

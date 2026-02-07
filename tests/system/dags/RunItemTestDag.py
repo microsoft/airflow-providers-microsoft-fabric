@@ -90,6 +90,17 @@ with DAG(
     deferrable=False,
   )
 
+  # DBT
+  runDbt = MSFabricRunJobOperator(
+    task_id="runDbtTask_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
+    job_type="DBT",
+    timeout=60 * 10, #10 minutes
+    deferrable=True,
+  )
+
   # User Function
   runFunction1 = MSFabricRunUserDataFunctionOperator(
     task_id="run_user_data_function1",

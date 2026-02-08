@@ -34,7 +34,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
             return "RunNotebook" # as defined in job api
         elif job_type == "RunSparkJob" or job_type == "SparkJob":
             return "sparkjob"
-        elif job_type == "DataBuildToolJob" or job_type == "DBT" or job_type == "DBTItem":
+        elif job_type == "DataBuildToolJob" or job_type == "DBTItems" or job_type == "Execute":
             return "Execute"
         elif job_type == "RefreshMaterializedLakeViews":
             return "RefreshMaterializedLakeViews"

@@ -33,8 +33,8 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
             return "RunNotebook" # as defined in job api
         elif job_type == "RunSparkJob" or job_type == "SparkJob":
             return "sparkjob"
-        elif job_type == "DataBuildToolJob" or job_type == "DBT":
-            return "DataBuildToolJob"
+        elif job_type == "DataBuildToolJob" or job_type == "DBT" or job_type == "DBTItem":
+            return "DBTItem"
         return job_type
 
     # Keep template-able primitives as top-level attributes

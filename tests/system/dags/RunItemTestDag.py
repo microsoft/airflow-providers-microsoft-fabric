@@ -121,6 +121,7 @@ with DAG(
     job_type="RefreshMaterializedLakeViews",
     timeout=60 * 10, #10 minutes
     deferrable=True,
+    scope="https://graph.microsoft.com/.default",
   )
 
   # User Function

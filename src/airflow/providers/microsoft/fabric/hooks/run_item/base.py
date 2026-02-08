@@ -40,11 +40,11 @@ class BaseFabricRunItemHook:
                 runItemConfig.fabric_conn_id,
                 tenacity_retry=runItemConfig.tenacity_retry,
             )
-            self.log.info("Successfully initialized MSFabricRunItemHook - conn_id: %s, poll interval (secs): %s, timeout (secs): %s, retry_config: %s",
+            self.log.debug("Successfully initialized BaseFabricRunItemHook - conn_id: %s, poll interval (secs): %s, timeout (secs): %s, retry_config: %s",
             runItemConfig.fabric_conn_id, runItemConfig.poll_interval_seconds, runItemConfig.timeout_seconds,  runItemConfig.tenacity_retry
         )
         except Exception as e:
-            self.log.error("Failed to initialize MS Fabric Run Item Hook: %s", str(e))
+            self.log.error("Failed to initialize BaseFabricRunItemHook: %s", str(e))
             raise
 
     @abstractmethod
@@ -85,7 +85,7 @@ class BaseFabricRunItemHook:
         """
 
         # Start the item run
-        self.log.info(
+        self.log.debug(
             "Starting item run - workspace_id: %s, item_id: %s, job_type: %s",
             item.workspace_id, item.item_id, item.item_type, 
         )

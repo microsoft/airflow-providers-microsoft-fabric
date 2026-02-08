@@ -98,7 +98,7 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
         # fetch artifact name
         item_name = await self.get_item_name(item)
 
-        self.log.debug("Started semantic model refresh: name: %s, run_id=%s refresh_id=%s, retry_after: %s, location=%s", item_name, run_id, run_id, retry_after, location_url)
+        self.log.info("Started semantic model refresh: name: %s, run_id=%s refresh_id=%s, retry_after: %s, location=%s", item_name, run_id, run_id, retry_after, location_url)
 
         return RunItemTracker(
             item=ItemDefinition(

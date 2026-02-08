@@ -240,7 +240,8 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         elif item_type == "DataBuildToolJob":
             return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/dbtitems/{item_id}/{run_id}"
-
+        elif item_type == "RefreshMaterializedLakeViews":
+            return f"{base_url}/groups/{workspace_id}/lakehouses/{item_id}?experience=fabric-developer"
         else:
             self.log.warning("Unsupported item type for job hook generate_deep_link: %s", item_type)
             return ""

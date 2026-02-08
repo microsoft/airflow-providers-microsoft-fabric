@@ -182,7 +182,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         # Parse Status
         status = self._parse_status(body.get("status"))
 
-        self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, str(body), headers.get("RequestId")) # DEBUG ONLY DONT COMMiT
+        self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, status, headers.get("RequestId"))
         return status
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:

@@ -217,8 +217,8 @@ class HttpClient:
             job_id = self.get_job_id(response.headers)
 
             # Log detailed request/response at debug level with redaction
-            if self.log.isEnabledFor(logging.DEBUG):
-                self.log.debug(self._redactor.preview_response(
+            if self.log.isEnabledFor(logging.INFO):
+                self.log.info(self._redactor.preview_response( #do not commit
                     method, url, status_code, response_headers, body_text, ctype, req_id, job_id
                 ))
 

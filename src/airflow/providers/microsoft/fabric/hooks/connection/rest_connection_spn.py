@@ -42,7 +42,7 @@ class MSFabricRestConnectionSPN:
             "SPN Connection configured - Tenant ID: %s, Client ID: %s, Client Secret: %s",
             self.tenant_id,
             self.client_id,
-            f"{self.client_secret[:4]}***{self.client_secret[-4:]}" if len(self.client_secret) > 8 else "***"
+            f"{self.client_secret[:1]}***{self.client_secret[-1:]}" if len(self.client_secret) > 8 else "***"
         )
         
         # Token cache - indexed by scope

@@ -122,9 +122,9 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             raise MSFabricRunItemException("Missing Location header in run response.")
 
         # Extract request id from header for tracking purposes
-        request_id = headers.get("x-ms-request-id")
+        request_id = headers.get("RequestId")
         if not request_id:
-            self.log.warning("Missing x-ms-request-id header, request_id will be unknown")
+            self.log.warning("Missing RequestId header, request_id will be unknown")
             request_id = "unknown"
 
         # Extract run_id from x-ms-job-id header

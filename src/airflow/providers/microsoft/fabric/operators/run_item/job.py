@@ -20,6 +20,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
     - "RunPipeline" or "Pipeline": Execute a Fabric data pipeline
     - "RunSparkJob" or "SparkJob": Execute a Spark job definition
     - "DataBuildToolJob" or "DBT": Execute a DBT job
+    - "RefreshMaterializedLakeViews": Refresh materialized views in a lakehouse
     """
 
     @staticmethod
@@ -34,7 +35,9 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         elif job_type == "RunSparkJob" or job_type == "SparkJob":
             return "sparkjob"
         elif job_type == "DataBuildToolJob" or job_type == "DBT" or job_type == "DBTItem":
-            return "DBTItem"
+            return "Execute"
+        elif job_type == "RefreshMaterializedLakeViews":
+            return "RefreshMaterializedLakeViews"
         return job_type
 
     # Keep template-able primitives as top-level attributes

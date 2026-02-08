@@ -74,6 +74,7 @@ FABRIC_STATUS_TEMPLATE = """
     <button onclick="location.reload();">Refresh</button>
     
     {% if pods %}
+    <h2>Pod Overview</h2>
     <table>
         <tr>
             <th>Namespace</th>
@@ -119,6 +120,28 @@ FABRIC_STATUS_TEMPLATE = """
         {% endfor %}
     </table>
     <p>Total: {{ pods|length }} pods</p>
+
+    <h2>Container Images</h2>
+    <table>
+        <tr>
+            <th>Namespace</th>
+            <th>Pod Name</th>
+            <th>Container Name</th>
+            <th>Full Image</th>
+        </tr>
+        {% for pod in pods %}
+            {% if pod.container_details %}
+                {% for container in pod.container_details %}
+                <tr>
+                    <td>{{ pod.namespace }}</td>
+                    <td>{{ pod.name }}</td>
+                    <td>{{ container.name }}</td>
+                    <td>{{ container.image }}</td>
+                </tr>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </table>
     {% else %}
     <p>No pod information available.</p>
     {% endif %}
@@ -205,13 +228,22 @@ def format_resource_usage(value: Optional[str], unit: str = "") -> str:
         return value or "-"
 
 
+class ContainerInfo:
+    """Simple data class to hold container information"""
+    
+    def __init__(self, name: str, image: str):
+        self.name = name
+        self.image = image
+
+
 class PodInfo:
     """Simple data class to hold basic pod information"""
     
     def __init__(self, namespace: str, name: str, status: str, active_since_formatted: str, 
                  node_name: Optional[str] = None, diagnostic_info: Optional[str] = None, 
                  container_names: Optional[List[str]] = None, cpu_usage: Optional[str] = None,
-                 memory_usage: Optional[str] = None):
+                 memory_usage: Optional[str] = None, container_images: Optional[List[str]] = None,
+                 container_details: Optional[List[ContainerInfo]] = None):
         self.namespace = namespace
         self.name = name
         self.status = status
@@ -221,6 +253,8 @@ class PodInfo:
         self.container_names = container_names or []
         self.cpu_usage = cpu_usage
         self.memory_usage = memory_usage
+        self.container_images = container_images or []
+        self.container_details = container_details or []
 
 
 def get_pod_diagnostic_info(pod) -> str:
@@ -387,10 +421,16 @@ def get_kubernetes_pods():
         # Get node name
         node_name = pod.spec.node_name or "Unknown"
         
-        # Extract container names
+        # Extract container names and images
         container_names = []
+        container_images = []
+        container_details = []
         if pod.spec.containers:
-            container_names = [container.name for container in pod.spec.containers]
+            for container in pod.spec.containers:
+                container_names.append(container.name)
+                if container.image:
+                    container_images.append(container.image)
+                    container_details.append(ContainerInfo(container.name, container.image))
         
         # Get CPU and memory usage from pod status (requests/limits)
         cpu_usage = None
@@ -468,6 +508,8 @@ def get_kubernetes_pods():
             container_names=container_names,
             cpu_usage=cpu_usage,
             memory_usage=memory_usage,
+            container_images=container_images,
+            container_details=container_details,
         )
         pods.append(pod_info)
     

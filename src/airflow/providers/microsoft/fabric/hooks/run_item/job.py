@@ -83,11 +83,11 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
                 tenacity_retry=config.tenacity_retry
             )
             self.log.info(
-                "Successfully initialized hook with connection_id: %s, poll_interval_seconds: %s, timeout_seconds: %s, api_host: %s, api_scope: %s", 
+                "Successfully initialized MSFabricRunJobHook with connection_id: %s, poll_interval_seconds: %s, timeout_seconds: %s, api_host: %s, api_scope: %s", 
                 config.fabric_conn_id, config.poll_interval_seconds, config.timeout_seconds, config.api_host, config.api_scope)
 
         except Exception as e:
-            self.log.error("Failed to initialize MS Fabric Job Scheduler Hook: %s", str(e))
+            self.log.error("Failed to initialize MSFabricRunJobHook: %s", str(e))
             raise
 
     async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker:
@@ -105,10 +105,6 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         #self.log.info("Job parameters: %s", self.config.job_params) # may contain sensitive data
 
         url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"
-        # if item.item_type == "DataBuildToolJob":
-        #     url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/DataBuildToolJobs/{item.item_id}/jobs/Execute/instances"
-        # else:
-        #     url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={item.item_type}"    
 
         # send data and content-type = json instead of json= to avoid double encoding
         response = await connection.request(
@@ -124,6 +120,12 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         if not location:
             self.log.error("Missing Location header in response for item %s", item.item_id)
             raise MSFabricRunItemException("Missing Location header in run response.")
+
+        # Extract request id from header for tracking purposes
+        request_id = headers.get("x-ms-request-id")
+        if not request_id:
+            self.log.warning("Missing x-ms-request-id header, request_id will be unknown")
+            request_id = "unknown"
 
         # Extract run_id from x-ms-job-id header
         run_id = headers.get("x-ms-job-id")
@@ -144,7 +146,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         # fetch artifact name
         item_name = await self.get_item_name(item)
 
-        self.log.debug("Successfully started item run - name: %s, run_id: %s, retry_after: %s, location: %s", item_name, run_id, retry_after, location)
+        self.log.info("Successfully started item run - name: %s, run_id: %s, request_id: %s, retry_after: %s, location: %s", item_name, run_id, request_id, retry_after, location)
 
         # Create and return RunItemTracker using config timeout
         return RunItemTracker(
@@ -180,7 +182,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         # Parse Status
         status = self._parse_status(body.get("status"))
 
-        self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, status, headers.get("RequestId"))
+        self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, str(body), headers.get("RequestId")) # DEBUG ONLY DONT COMMiT
         return status
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:

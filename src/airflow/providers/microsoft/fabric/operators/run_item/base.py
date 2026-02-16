@@ -44,9 +44,7 @@ class MSFabricItemLink(BaseOperatorLink):
         if deep_link:
             return deep_link
         
-
         return ""
-
 
 class BaseFabricRunItemOperator(BaseOperator):
     """Operator to run a Fabric item (e.g. a notebook) in a workspace."""

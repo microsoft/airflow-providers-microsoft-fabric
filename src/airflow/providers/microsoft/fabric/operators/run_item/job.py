@@ -23,23 +23,6 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
     - "RefreshMaterializedLakeViews": Refresh materialized views in a lakehouse
     """
 
-    @staticmethod
-    def _map_job_type_for_api(job_type: str) -> str:
-        """Map user-friendly job type names to API-compatible names."""
-        """Updates this mapping should be reflected in hook generate_deep_link method."""
-        """List all suported names for clarity"""
-        if job_type == "RunPipeline" or job_type == "Pipeline":
-            return "Pipeline"
-        elif job_type == "RunNotebook" or job_type == "Notebook":
-            return "RunNotebook" # as defined in job api
-        elif job_type == "RunSparkJob" or job_type == "SparkJob":
-            return "sparkjob"
-        elif job_type == "DataBuildToolJob" or job_type == "DBTItems" or job_type == "Execute":
-            return "Execute"
-        elif job_type == "RefreshMaterializedLakeViews":
-            return "RefreshMaterializedLakeViews"
-        return job_type
-
     # Keep template-able primitives as top-level attributes
     template_fields: Sequence[str] = (
         "fabric_conn_id",
@@ -92,7 +75,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         # Build initial item definition with API-compatible job type
         item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type=self._map_job_type_for_api(job_type),
+            item_type=job_type,
             item_id=self.item_id,
         )
 
@@ -118,7 +101,7 @@ class MSFabricRunJobOperator(BaseFabricRunItemOperator):
         # Rebuild item with the *rendered* values and API-compatible job type
         self.item = ItemDefinition(
             workspace_id=self.workspace_id,
-            item_type=self._map_job_type_for_api(self.job_type),
+            item_type= MSFabricRunJobHook.normalize_job_type(self.job_type),
             item_id=self.item_id,
         )
 

@@ -38,11 +38,9 @@ class MSFabricRestConnectionSPN:
         
         # Log connection configuration (mask sensitive data)
         self.log.info(
-            "SPN Connection configured - Tenant ID: %s, Client ID: %s, Client Secret: %s",
+            "SPN Connection configured - Tenant ID: %s, Client ID: %s, Client Secret: **",
             self.tenant_id,
-            self.client_id,
-            f"{self.client_secret[:1]}***{self.client_secret[-1:]}" if len(self.client_secret) > 8 else "***"
-        )
+            self.client_id)
         
         # Token cache - indexed by scope
         # Structure: {scope: (token, expires_at, acquired_at)}

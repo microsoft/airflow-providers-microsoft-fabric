@@ -185,7 +185,12 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         # Parse error details if present
         error_details = self._parse_error_details(body.get("failureReason"))
 
-        self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, status, headers.get("RequestId"))
+        self.log.info(
+            "Successfully retrieved run details for run_id: %s, status: %s, request_id: %s, error_details: %s", 
+            tracker.run_id, 
+            status, 
+            headers.get("RequestId"),
+            error_details)
         return status, error_details
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:
@@ -305,13 +310,12 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         error_code = error.get("errorCode", "Unknown")
         message = error.get("message", "No message provided")
         request_id = error.get("requestId")
-        details = error.get("details", [])
         
         # Format: "ErrorCode: Message. Requestid: requestId"
-        error_str = f"{error_code}: {message}"
+        error_str = f"{error_code}: {message}."
         
         if request_id:
-            error_str += f". Requestid: '{request_id}'"
+            error_str += f" [Requestid: '{request_id}']"
                 
         return error_str
 

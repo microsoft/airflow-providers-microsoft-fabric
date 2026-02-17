@@ -160,7 +160,7 @@ class BaseFabricRunItemHook:
                 return RunItemOutput(
                     tracker=tracker,
                     status=status,
-                    failed_reason=error_details if status in self.FAILURE_STATUSES else None,
+                    failed_reason=error_details
                 )
 
             self.log.debug(

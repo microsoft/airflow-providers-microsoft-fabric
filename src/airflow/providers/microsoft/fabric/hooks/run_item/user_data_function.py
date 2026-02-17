@@ -145,8 +145,8 @@ class MSFabricRunUserDataFunctionHook(BaseFabricRunItemHook):
             output=output  # Store output directly in tracker, signals operation completed with 200
         )
 
-    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus:
-        return MSFabricRunItemStatus.COMPLETED #run_init would fail in case of error
+    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> tuple[MSFabricRunItemStatus, Optional[str]]:
+        return MSFabricRunItemStatus.COMPLETED, None  # run_init would fail in case of error
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:
         raise MSFabricRunItemException("User Data Function does not support cancellation.")

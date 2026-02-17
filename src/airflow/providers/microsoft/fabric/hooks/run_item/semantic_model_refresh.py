@@ -114,7 +114,7 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
             retry_after=retry_after,
         )
 
-    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus:
+    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> tuple[MSFabricRunItemStatus, Optional[str]]:
         """
         Poll the refresh status using refresh history.
         Semantic Model Eviction: Operation can be retried, see URL below for error handling
@@ -131,7 +131,7 @@ class MSFabricRunSemanticModelRefreshHook(BaseFabricRunItemHook):
             if status == MSFabricRunItemStatus.FAILED and error_message:
                 self.log.error("Refresh failed: run_id=%s error=%s", tracker.run_id, error_message)
 
-            return status
+            return status, error_message
                         
         except MSFabricRunItemException as e:
             self.log.error("Failed to get status from history: %s. Falling back to direct status check.", str(e))                    

@@ -164,13 +164,13 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             retry_after=retry_after
         )
 
-    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus:
+    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> tuple[MSFabricRunItemStatus, Optional[str]]:
         """
         Get run status and details from location URL.
 
         :param connection: MSFabricRestConnection instance for making API calls
         :param tracker: RunItemTracker containing the run details
-        :return: Run status data
+        :return: Tuple of (status, error_details) where error_details is None if no error
         :raises MSFabricRunItemException: If run has failed with known error patterns
         """
         self.log.debug("Getting run status from: %s", tracker.location_url)
@@ -182,9 +182,12 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         # Parse Status
         status = self._parse_status(body.get("status"))
+        
+        # Parse error details if present
+        error_details = self._parse_error_details(body.get("error"))
 
         self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, status, headers.get("RequestId"))
-        return status
+        return status, error_details
 
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker ) -> bool:
         """
@@ -264,7 +267,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         fallback_url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={normalized_type}"
 
         match (normalized_type.lower()):
-            case "pipeline" | "runnotebook" | "sparkjob" | "refreshmaterializedlakeviews":
+            case "sparkjob":
                 return default_url;
             
             case _:
@@ -290,6 +293,29 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         return job_type # DBTItems, CopyJobs - normalize to type displayed in URL
 
 
+    def _parse_error_details(self, error: Optional[Dict[str, Any]]) -> Optional[str]:
+        """
+        Parse error details from API response.
+        
+        :param error: Error object from API response
+        :return: Formatted error string or None
+        """
+        if not error:
+            return None
+        
+        error_code = error.get("errorCode", "Unknown")
+        message = error.get("message", "No message provided")
+        details = error.get("details", [])
+        
+        # Format: "ErrorCode: Message. Details: [detail1, detail2]"
+        error_str = f"{error_code}: {message}"
+        
+        if details:
+            detail_messages = [f"{d.get('code', 'Unknown')}: {d.get('message', '')}" for d in details]
+            error_str += f" Details: [{', '.join(detail_messages)}]"
+        
+        return error_str
+
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:
 
         if (sourceStatus is None) or (sourceStatus == ""):
@@ -299,4 +325,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         try:
             return MSFabricRunItemStatus(sourceStatus)
         except ValueError:
-            raise MSFabricRunItemException("Invalid 'status' - mapping to MSFabricRunItemStatus failed.")
+            self.log.error("Failed to parse status value: '%s'. Valid statuses are: %s", 
+                          sourceStatus, 
+                          [s.value for s in MSFabricRunItemStatus])
+            raise MSFabricRunItemException(f"Invalid 'status' value '{sourceStatus}' - mapping to MSFabricRunItemStatus failed.")

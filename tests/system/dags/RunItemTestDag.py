@@ -20,7 +20,7 @@ with DAG(
     item_id="f836c2e6-1969-4963-8fe5-7eda6fc83efa",
     timeout=60 * 10, #10 minutes
     deferrable=False,
-    api_host="https://dailyapi.fabric.microsoft.com")
+    api_host="https://api.fabric.microsoft.com")
 
   runSemanticModel2 = MSFabricRunSemanticModelRefreshOperator(
     task_id="run_semantic_model_refresh2",
@@ -29,7 +29,7 @@ with DAG(
     item_id="f836c2e6-1969-4963-8fe5-7eda6fc83efa",
     timeout=60 * 10, #10 minutes
     deferrable=True,
-    api_host="https://dailyapi.fabric.microsoft.com")
+    api_host="https://api.fabric.microsoft.com")
 
 # SparkJon
   runSparkJob = MSFabricRunJobOperator(
@@ -93,15 +93,15 @@ with DAG(
 
 # SPN SUPPORT iS BROKEN
   # # DBT Deferred
-  # runDbt1 = MSFabricRunJobOperator(
-  #   task_id="runDbtTask_deferred",
-  #   fabric_conn_id="fabric-integration",
-  #   workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
-  #   item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
-  #   job_type="DBT",
-  #   timeout=60 * 10, #10 minutes
-  #   deferrable=True,
-  # )
+  runDbt1 = MSFabricRunJobOperator(
+    task_id="runDbtTask_deferred",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
+    job_type="DBT",
+    timeout=60 * 10, #10 minutes
+    deferrable=True,
+  )
 
   # # DBT Synchronous
   # runDbt2 = MSFabricRunJobOperator(

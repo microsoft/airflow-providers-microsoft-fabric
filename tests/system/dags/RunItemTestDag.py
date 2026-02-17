@@ -8,7 +8,9 @@ from airflow.providers.microsoft.fabric.operators.run_item import MSFabricPipeli
 
 with DAG(
   dag_id="ci_pipeline_dag",
+  schedule=None,
   catchup=False,
+  is_paused_upon_creation=True,
 ) as dag:
 
   # Semantic Model - runs in daily only due to license issues.

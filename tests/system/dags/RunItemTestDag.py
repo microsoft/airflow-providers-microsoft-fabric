@@ -15,7 +15,7 @@ with DAG(
   # Semantic Model - runs in daily only due to license issues.
   runSemanticModel1 = MSFabricRunSemanticModelRefreshOperator(
     task_id="run_semantic_model_refresh",
-    fabric_conn_id="fabric-powerbi",
+    fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
     item_id="f836c2e6-1969-4963-8fe5-7eda6fc83efa",
     timeout=60 * 10, #10 minutes
@@ -24,7 +24,7 @@ with DAG(
 
   runSemanticModel2 = MSFabricRunSemanticModelRefreshOperator(
     task_id="run_semantic_model_refresh2",
-    fabric_conn_id="fabric-powerbi",
+    fabric_conn_id="fabric-integration",
     workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
     item_id="f836c2e6-1969-4963-8fe5-7eda6fc83efa",
     timeout=60 * 10, #10 minutes

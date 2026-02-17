@@ -265,7 +265,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         match (normalized_type.lower()):
             case "pipeline" | "runnotebook" | "sparkjob" | "refreshmaterializedlakeviews":
-                return fallback_url;
+                return default_url;
             
             case _:
                 return default_url; # DBTItems, CopyJobs - # DBTItems, CopyJobs - normalize to type displayed in URLs

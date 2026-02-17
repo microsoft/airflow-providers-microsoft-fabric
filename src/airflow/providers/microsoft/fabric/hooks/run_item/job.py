@@ -183,7 +183,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         status = self._parse_status(body.get("status"))
         
         # Parse error details if present
-        error_details = self._parse_error_details(body.get("error"))
+        error_details = self._parse_error_details(body.get("failureReason"))
 
         self.log.info("Successfully retrieved run details for run_id: %s, status: %s, request_id: %s", tracker.run_id, status, headers.get("RequestId"))
         return status, error_details
@@ -296,7 +296,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         """
         Parse error details from API response.
         
-        :param error: Error object from API response
+        :param error: Error object from API response (can be 'error' or 'failureReason' field)
         :return: Formatted error string or None
         """
         if not error:
@@ -304,15 +304,15 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         
         error_code = error.get("errorCode", "Unknown")
         message = error.get("message", "No message provided")
+        request_id = error.get("requestId")
         details = error.get("details", [])
         
-        # Format: "ErrorCode: Message. Details: [detail1, detail2]"
+        # Format: "ErrorCode: Message. Requestid: requestId"
         error_str = f"{error_code}: {message}"
         
-        if details:
-            detail_messages = [f"{d.get('code', 'Unknown')}: {d.get('message', '')}" for d in details]
-            error_str += f" Details: [{', '.join(detail_messages)}]"
-        
+        if request_id:
+            error_str += f". Requestid: '{request_id}'"
+                
         return error_str
 
     def _parse_status(self, sourceStatus: Optional[str]) -> MSFabricRunItemStatus:

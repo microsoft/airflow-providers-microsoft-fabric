@@ -2,6 +2,7 @@ from abc import abstractmethod
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 from airflow.exceptions import AirflowException
 from airflow.providers.microsoft.fabric.hooks.run_item.model import ItemDefinition, MSFabricRunItemStatus, RunItemConfig, RunItemOutput, RunItemTracker

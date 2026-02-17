@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, Any
-from unittest import case
 
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
 from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException

@@ -51,7 +51,7 @@ class BaseFabricRunItemHook:
     async def run_item(self, connection: MSFabricRestConnection, item: ItemDefinition) -> RunItemTracker: ...
 
     @abstractmethod
-    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> MSFabricRunItemStatus: ...
+    async def get_run_status(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> tuple[MSFabricRunItemStatus, Optional[str]]: ...
 
     @abstractmethod
     async def cancel_run(self, connection: MSFabricRestConnection, tracker: RunItemTracker) -> bool: ...
@@ -151,14 +151,15 @@ class BaseFabricRunItemHook:
                 attempt, elapsed, remaining)
 
             # Get status and check if run has finished
-            status = await self.get_run_status(self.conn, tracker)
+            status, error_details = await self.get_run_status(self.conn, tracker)
             has_finished = status in self.TERMINAL_STATUSES
 
             if has_finished:
-                # Return success event data with payload
+                # Return event data with payload, including error details for failures
                 return RunItemOutput(
                     tracker=tracker,
                     status=status,
+                    failed_reason=error_details if status in self.FAILURE_STATUSES else None,
                 )
 
             self.log.debug(

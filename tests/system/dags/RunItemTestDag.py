@@ -98,7 +98,7 @@ with DAG(
   #   fabric_conn_id="fabric-integration",
   #   workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
   #   item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
-  #   job_type="DBT",
+  #   job_type="DBTItems",
   #   timeout=60 * 10, #10 minutes
   #   deferrable=True,
   # )
@@ -109,7 +109,7 @@ with DAG(
   #   fabric_conn_id="fabric-integration",
   #   workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
   #   item_id="fcfbc4e7-51a2-4dc9-b100-00bc1722a39b",
-  #   job_type="DBT",
+  #   job_type="DBTItems",
   #   timeout=60 * 10, #10 minutes
   #   deferrable=False,
   # )

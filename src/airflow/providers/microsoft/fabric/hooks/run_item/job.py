@@ -256,7 +256,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             return f"{base_url}/workloads/data-pipeline/monitoring/workspaces/{workspace_id}/copyjobs/{item_id}/{run_id}"
         
         elif normalized_type == "refreshmaterializedlakeviews":
-            return f"{base_url}/groups/{workspace_id}/lakehouses/{item_id}/materializedLakeViews/{run_id}"        
+            return f"{base_url}/groups/{workspace_id}/lakehouses/{item_id}/materializedLakeViews/{run_id}"
 
         else:
             self.log.warning("Unsupported item type for job hook generate_deep_link: %s", item_type)
@@ -271,6 +271,7 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         fallback_url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={normalized_type}"
 
         match (normalized_type.lower()):
+            # does not seem to support the default url for the time being
             case "sparkjob":
                 return fallback_url;
             

@@ -20,6 +20,7 @@ version = "0.0.9"
 requires-python = ">=3.8"
 dependencies = [
     "requests",
+    "azure-storage-file-datalake",
 ]
 
 [project.optional-dependencies]

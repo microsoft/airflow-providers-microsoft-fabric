@@ -108,7 +108,9 @@ class MSFabricRestConnection(BaseHook):
             self.log.error("Connection '%s' has no extra configuration", conn_id)
             raise AirflowException(
                 f"Connection '{conn_id}' missing extra configuration. "
-                "Please configure the required parameters for the chosen auth type."
+                "Please configure the required parameters for the chosen auth type "
+                "(for example, for auth_type='spn' you typically need tenantId, clientId, and clientSecret). "
+                "Refer to the Microsoft Fabric provider documentation for details on each auth type's requirements."
             )
 
         available_params = list(self.conn.extra_dejson.keys())

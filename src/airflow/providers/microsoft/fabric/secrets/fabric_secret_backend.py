@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import requests
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
@@ -10,7 +11,12 @@ from airflow.exceptions import AirflowException
 from airflow.models.connection import Connection
 from airflow.secrets import BaseSecretsBackend
 
+from azure.identity import DefaultAzureCredential
+
 log = logging.getLogger(__name__)
+
+# Scope required to call back into Fabric APIs - Specific to Fabric Airflow Job. 
+FABRIC_API_SCOPE = "64e9913a-54b9-4fdb-b4bb-b8e22fa6a37e/.defAPault"
 
 _GUID_REGEX = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -20,11 +26,14 @@ _GUID_REGEX = re.compile(
 class FabricSecretBackend(BaseSecretsBackend):
     """
     Airflow secrets backend that fetches pre-minted access tokens from a
-    Microsoft Fabric secret-store API when the connection ID is a GUID.
+    Microsoft Fabric secret-store API. 
+    
+    THIS IS NOT INTENDED FOR USE OUTSIDE OF FABRIC AIRFLOW JOBS.
 
-    For non-GUID connection IDs the lookup is skipped (returns ``None``) so
-    that remaining backends in the chain (e.g. environment variables, Airflow
-    metadata DB) can handle them.
+    Connections in Fabric are represented as a GUID - will use that as a 
+    lookup pattern filter. For non-GUID connection IDs the lookup is 
+    skipped (returns ``None``) so that remaining backends in the chain 
+    (e.g. environment variables, Airflow metadata DB) can handle them.
 
     Configuration (airflow.cfg)::
 
@@ -32,8 +41,9 @@ class FabricSecretBackend(BaseSecretsBackend):
         backend = airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend
         backend_kwargs = {"expiry_buffer_seconds": 300}
 
-    Environment variables:
-        FABRIC_SECRET_BACKEND_API_URL  -- base URL of the Fabric credential API.
+    Environment variables
+        FABRIC_SECRET_BACKEND_API_URL  -- base URL of the Fabric API.
+    TODO: in future move this to a configuration parameter:
     """
 
     def __init__(
@@ -110,12 +120,9 @@ class FabricSecretBackend(BaseSecretsBackend):
         log.debug("Fetching credential from Fabric API: %s", url)
 
         try:
-            from azure.identity import DefaultAzureCredential
-            import requests
-
             credential = DefaultAzureCredential()
             azure_token = credential.get_token(
-                "64e9913a-54b9-4fdb-b4bb-b8e22fa6a37e/.default"
+                FABRIC_API_SCOPE
             )
 
             response = requests.get(

@@ -16,7 +16,7 @@ from azure.identity import DefaultAzureCredential
 log = logging.getLogger(__name__)
 
 # Scope required to call back into Fabric APIs - Specific to Fabric Airflow Job. 
-FABRIC_API_SCOPE = "64e9913a-54b9-4fdb-b4bb-b8e22fa6a37e/.defAPault"
+FABRIC_API_SCOPE = "64e9913a-54b9-4fdb-b4bb-b8e22fa6a37e/.default"
 
 _GUID_REGEX = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -116,7 +116,7 @@ class FabricSecretBackend(BaseSecretsBackend):
                 "FABRIC_SECRET_BACKEND_API_URL is required for FabricSecretBackend."
             )
 
-        url = f"{api_base_url.rstrip('/')}/{conn_id}"
+        url = f"{api_base_url.rstrip('/')}/connections/{conn_id}"
         log.debug("Fetching credential from Fabric API: %s", url)
 
         try:
@@ -125,11 +125,22 @@ class FabricSecretBackend(BaseSecretsBackend):
                 FABRIC_API_SCOPE
             )
 
+            start = time.monotonic()
             response = requests.get(
                 url,
                 headers={"Authorization": f"Bearer {azure_token.token}"},
-                timeout=30,
+                timeout=30
             )
+            elapsed = time.monotonic() - start
+
+            if elapsed > 5:
+                log.warning(
+                    "Fabric API call for conn_id '%s' took %.2f seconds.", conn_id, elapsed
+                )
+            else:
+                log.info(
+                    "Fabric API call for conn_id '%s' took %.2f seconds.", conn_id, elapsed
+                )
 
             if response.status_code == 404:
                 log.debug("Fabric API returned 404 for conn_id '%s'.", conn_id)
@@ -228,11 +239,22 @@ class FabricSecretBackend(BaseSecretsBackend):
 
     @staticmethod
     def _parse_expiry(expires_str: str) -> float:
-        """Parse an ISO-8601 expiry string into a UTC epoch timestamp."""
+        """Parse an expiry string into a UTC epoch timestamp.
+
+        Supports ISO-8601 format and the ``M/D/YYYY h:mm:ss AM/PM +HH:MM``
+        format returned by some Fabric API responses.
+        """
         try:
             dt = datetime.fromisoformat(expires_str)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
+            return dt.timestamp()
+        except (ValueError, TypeError):
+            pass
+
+        # Fallback: "3/9/2026 12:31:13 AM +00:00"
+        try:
+            dt = datetime.strptime(expires_str, "%m/%d/%Y %I:%M:%S %p %z")
             return dt.timestamp()
         except (ValueError, TypeError) as exc:
             raise AirflowException(

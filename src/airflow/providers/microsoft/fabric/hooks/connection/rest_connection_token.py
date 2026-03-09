@@ -95,6 +95,7 @@ class MSFabricRestConnectionToken:
             self._fmt_ts(self._expires_at),
         )
 
+    #TODO: self._expiry_buffer should always be higher than the SecretBackend buffer, or we may not refresh and say it is still invalid. 
     def _is_token_valid(self) -> bool:
         return time.time() < (self._expires_at - self._expiry_buffer)
 

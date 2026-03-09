@@ -27,7 +27,7 @@ class MSFabricRestConnectionToken:
 
         self._access_token: str = ""
         self._expires_at: float = 0.0
-        self._expiry_buffer: int = 300  # seconds
+        self._expiry_buffer: float = 0.0
 
         self._load_token(conn)
 
@@ -89,13 +89,23 @@ class MSFabricRestConnectionToken:
         self._access_token = token
         self._expires_at = float(expires_at)
 
+        # Derive our buffer from the secret backend's buffer so the backend
+        # always evicts its cache *before* we consider the token stale.
+        # Using half the backend buffer guarantees: backend_buffer > token_buffer.
+        backend_buffer = extras.get("expiryBufferSeconds")
+        if backend_buffer is not None:
+            self._expiry_buffer = float(backend_buffer) / 2
+        elif self._expiry_buffer == 0.0:
+            self._expiry_buffer = 60.0  # safe default
+
         self.log.debug(
-            "Loaded pre-minted token for connection '%s' (expires %s).",
+            "Loaded pre-minted token for connection '%s' (expires %s, backend buffer %.0fs, token buffer %.0fs).",
             self.connection_id,
             self._fmt_ts(self._expires_at),
+            float(backend_buffer) if backend_buffer is not None else 0.0,
+            self._expiry_buffer,
         )
 
-    #TODO: self._expiry_buffer should always be higher than the SecretBackend buffer, or we may not refresh and say it is still invalid. 
     def _is_token_valid(self) -> bool:
         return time.time() < (self._expires_at - self._expiry_buffer)
 

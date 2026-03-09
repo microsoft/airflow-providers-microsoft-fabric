@@ -222,6 +222,7 @@ class FabricSecretBackend(BaseSecretsBackend):
                     "auth_type": "token",
                     "accessToken": access_token,
                     "expiresAt": expires_at,
+                    "expiryBufferSeconds": self._expiry_buffer_seconds,
                 }
             ),
         )

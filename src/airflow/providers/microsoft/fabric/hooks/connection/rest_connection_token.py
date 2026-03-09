@@ -60,13 +60,23 @@ class MSFabricRestConnectionToken:
         conn = BaseHook.get_connection(self.connection_id)
         self._load_token(conn)
 
-        if not self._is_token_valid():
-            raise AirflowException(
-                f"Re-fetched token for connection '{self.connection_id}' is already "
-                "expired. Check the Fabric secret-store API."
-            )
+        if self._is_token_valid():
+            return self._access_token
 
-        return self._access_token
+        # Token is within buffer but not truly expired — use it with a warning
+        if time.time() < self._expires_at:
+            self.log.warning(
+                "Re-fetched token for connection '%s' is within the expiry buffer "
+                "but still valid (expires %s). Fabric may have returned the same token.",
+                self.connection_id,
+                self._fmt_ts(self._expires_at),
+            )
+            return self._access_token
+
+        raise AirflowException(
+            f"Re-fetched token for connection '{self.connection_id}' is already "
+            "expired. Check the Fabric secret-store API."
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

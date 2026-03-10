@@ -48,4 +48,7 @@ def get_provider_info():
                 "plugin-class": "airflow.providers.microsoft.fabric.plugins.fabric_status_plugin.FabricStatusPlugin",
             }
         ],
+        "secrets-backends": [
+            "airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend",
+        ],
     }

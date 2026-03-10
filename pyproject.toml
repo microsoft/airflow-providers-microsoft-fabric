@@ -16,10 +16,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
-version = "0.0.9"
+version = "0.1.0"
 requires-python = ">=3.8"
 dependencies = [
     "requests",
+    "azure-identity",
 ]
 
 [project.optional-dependencies]

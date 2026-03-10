@@ -129,7 +129,8 @@ class FabricSecretBackend(BaseSecretsBackend):
             response = requests.get(
                 url,
                 headers={"Authorization": f"Bearer {azure_token.token}"},
-                timeout=30
+                timeout=30,
+                json={},
             )
             elapsed = time.monotonic() - start
 

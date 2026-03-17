@@ -15,9 +15,6 @@ from azure.identity import DefaultAzureCredential
 
 log = logging.getLogger(__name__)
 
-# Scope required to call back into Fabric APIs - Specific to Fabric Airflow Job. 
-FABRIC_API_SCOPE = "64e9913a-54b9-4fdb-b4bb-b8e22fa6a37e/.default"
-
 _GUID_REGEX = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
@@ -25,36 +22,76 @@ _GUID_REGEX = re.compile(
 
 class FabricSecretBackend(BaseSecretsBackend):
     """
-    Airflow secrets backend that fetches pre-minted access tokens from a
-    Microsoft Fabric secret-store API. 
-    
     THIS IS NOT INTENDED FOR USE OUTSIDE OF FABRIC AIRFLOW JOBS.
 
-    Connections in Fabric are represented as a GUID - will use that as a 
-    lookup pattern filter. For non-GUID connection IDs the lookup is 
-    skipped (returns ``None``) so that remaining backends in the chain 
-    (e.g. environment variables, Airflow metadata DB) can handle them.
+    Airflow secrets backend that fetches pre-minted access tokens 
+    from a Microsoft Fabric connections API.  
 
-    Configuration (airflow.cfg)::
+    Connections in Fabric are represented as a GUID — the GUID is used as a
+    lookup key.  For non-GUID connection IDs the lookup is skipped (returns
+    ``None``) so that remaining backends in the chain (e.g. environment
+    variables, Airflow metadata DB) can handle them.
+
+    Setup
+    -----
+    **airflow.cfg**::
 
         [secrets]
         backend = airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend
-        backend_kwargs = {"expiry_buffer_seconds": 300}
+        backend_kwargs = {
+            "api_base_url": "https://<fabric-api-host>",
+            "api_scope": "5d13f7d7-0567-429c-9880-320e9555e5fc/.default",
+            "expiry_buffer_seconds": 300
+        }
 
-    Environment variables
-        FABRIC_SECRET_BACKEND_API_URL  -- base URL of the Fabric API.
-    TODO: in future move this to a configuration parameter:
+    **Environment variable overrides** (useful in containerised / Kubernetes
+    deployments where airflow.cfg is not easy to edit).  All constructor
+    parameters can be passed as a JSON string via
+    ``AIRFLOW__SECRETS__BACKEND_KWARGS``::
+
+        AIRFLOW__SECRETS__BACKEND=airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend
+        AIRFLOW__SECRETS__BACKEND_KWARGS={
+            "api_base_url": "https://<fabric-api-host>",
+            "api_scope": "API SCOPE TO BE USED",
+            "expiry_buffer_seconds": 300
+        }
+
+    Alternatively, ``api_base_url`` and ``api_scope`` can be supplied via
+    dedicated environment variables (``expiry_buffer_seconds`` will use its
+    default)::
+
+        FABRIC_SECRET_BACKEND_API_URL=https://<fabric-api-host>
+        FABRIC_API_SCOPE=API scope to be used
+
     """
 
     def __init__(
         self,
         expiry_buffer_seconds: int = 300,
+        api_scope: Optional[str] = None,
+        api_base_url: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        self._expiry_buffer_seconds = expiry_buffer_seconds
+
         # Cache: conn_id -> (Connection, expires_at_epoch)
         self._cache: Dict[str, Tuple[Connection, float]] = {}
+
+        self._expiry_buffer_seconds = expiry_buffer_seconds
+
+        self._api_scope = api_scope or os.environ.get("FABRIC_API_SCOPE")
+        if not self._api_scope:
+            raise AirflowException(
+                "FabricSecretBackend requires 'api_scope' or the "
+                "FABRIC_API_SCOPE environment variable to be set."
+            )
+        
+        self._api_base_url = api_base_url or os.environ.get("FABRIC_SECRET_BACKEND_API_URL")
+        if not self._api_base_url:
+            raise AirflowException(
+                "FabricSecretBackend requires 'api_base_url' or the "
+                "FABRIC_SECRET_BACKEND_API_URL environment variable to be set."
+            )
 
     # ------------------------------------------------------------------
     # Public API (BaseSecretsBackend contract)
@@ -109,21 +146,12 @@ class FabricSecretBackend(BaseSecretsBackend):
 
     def _fetch_and_cache(self, conn_id: str) -> Optional[Connection]:
         """Call the Fabric credential API, build a Connection, and cache it."""
-        api_base_url = os.environ.get("FABRIC_SECRET_BACKEND_API_URL")
-        if not api_base_url:
-            log.error("FABRIC_SECRET_BACKEND_API_URL environment variable is not set.")
-            raise AirflowException(
-                "FABRIC_SECRET_BACKEND_API_URL is required for FabricSecretBackend."
-            )
-
-        url = f"{api_base_url.rstrip('/')}/connections/{conn_id}"
+        url = f"{self._api_base_url.rstrip('/')}/connections/{conn_id}"
         log.debug("Fetching credential from Fabric API: %s", url)
 
         try:
             credential = DefaultAzureCredential()
-            azure_token = credential.get_token(
-                FABRIC_API_SCOPE
-            )
+            azure_token = credential.get_token(self._api_scope)
 
             start = time.monotonic()
             response = requests.get(

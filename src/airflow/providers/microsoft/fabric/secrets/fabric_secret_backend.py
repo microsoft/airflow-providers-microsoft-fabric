@@ -40,7 +40,7 @@ class FabricSecretBackend(BaseSecretsBackend):
         backend = airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend
         backend_kwargs = {
             "api_base_url": "https://<fabric-api-host>",
-            "api_scope": "5d13f7d7-0567-429c-9880-320e9555e5fc/.default",
+            "api_scope": "scope",
             "expiry_buffer_seconds": 300
         }
 
@@ -62,7 +62,6 @@ class FabricSecretBackend(BaseSecretsBackend):
 
         FABRIC_SECRET_BACKEND_API_URL=https://<fabric-api-host>
         FABRIC_API_SCOPE=API scope to be used
-
     """
 
     def __init__(

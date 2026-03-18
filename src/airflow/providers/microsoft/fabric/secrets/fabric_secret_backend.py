@@ -61,7 +61,7 @@ class FabricSecretBackend(BaseSecretsBackend):
     default)::
 
         FABRIC_SECRET_BACKEND_API_URL=https://<fabric-api-host>
-        FABRIC_API_SCOPE=API scope to be used
+        FABRIC_SECRET_BACKEND_API_SCOPE=API scope to be used
     """
 
     def __init__(
@@ -78,11 +78,11 @@ class FabricSecretBackend(BaseSecretsBackend):
 
         self._expiry_buffer_seconds = expiry_buffer_seconds
 
-        self._api_scope = api_scope or os.environ.get("FABRIC_API_SCOPE")
+        self._api_scope = api_scope or os.environ.get("FABRIC_SECRET_BACKEND_API_SCOPE")
         if not self._api_scope:
             raise AirflowException(
                 "FabricSecretBackend requires 'api_scope' or the "
-                "FABRIC_API_SCOPE environment variable to be set."
+                "FABRIC_SECRET_BACKEND_API_SCOPE environment variable to be set."
             )
         
         self._api_base_url = api_base_url or os.environ.get("FABRIC_SECRET_BACKEND_API_URL")

@@ -7,14 +7,16 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.filedatalake import DataLakeServiceClient
 
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
-from airflow.providers.microsoft.fabric.hooks.onelake._constants import (
+from airflow.providers.microsoft.fabric.utils.onelake.constants import (
     DEFAULT_WRITE_BUFFER_SIZE,
     ONELAKE_ENDPOINT,
     ONELAKE_SCOPE,
+)
+from airflow.providers.microsoft.fabric.utils.onelake.exceptions import (
     OneLakeError,
     OneLakeWriterClosedError,
 )
-from airflow.providers.microsoft.fabric.hooks.onelake._credential import _FabricTokenCredential
+from airflow.providers.microsoft.fabric.utils.onelake._credential import _FabricTokenCredential
 
 
 class OneLakeWriter:

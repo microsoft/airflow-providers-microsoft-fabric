@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, call
 
 from azure.core.exceptions import ResourceNotFoundError
 
-from airflow.providers.microsoft.fabric.hooks.onelake.writer import OneLakeWriter
-from airflow.providers.microsoft.fabric.hooks.onelake._constants import (
+from airflow.providers.microsoft.fabric.utils.onelake import (
     OneLakeError,
+    OneLakeWriter,
     OneLakeWriterClosedError,
 )
 
@@ -17,7 +17,7 @@ LAKEHOUSE = "MyLakehouse"
 FILE_PATH = "output/result.csv"
 BUFFER_SIZE = 10  # small value for easy testing
 
-WRITER_MODULE = "airflow.providers.microsoft.fabric.hooks.onelake.writer"
+WRITER_MODULE = "airflow.providers.microsoft.fabric.utils.onelake.writer"
 
 
 # --------------------------------------------------------------------------- #

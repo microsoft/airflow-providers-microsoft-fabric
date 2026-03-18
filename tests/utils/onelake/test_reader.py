@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock, patch, call
 
-from airflow.providers.microsoft.fabric.hooks.onelake.reader import OneLakeReader
+from airflow.providers.microsoft.fabric.utils.onelake import OneLakeReader
 
 CONN_ID = "fabric_default"
 WORKSPACE = "MyWorkspace"
 LAKEHOUSE = "MyLakehouse"
 FILE_PATH = "folder/data.csv"
 
-READER_MODULE = "airflow.providers.microsoft.fabric.hooks.onelake.reader"
+READER_MODULE = "airflow.providers.microsoft.fabric.utils.onelake.reader"
 
 
 # --------------------------------------------------------------------------- #

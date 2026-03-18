@@ -36,6 +36,9 @@ Homepage = "https://github.com/microsoft/apache-airflow-microsoft-fabric-plugin.
 [project.entry-points."apache_airflow_provider"]
 provider_info = "airflow.providers.microsoft.fabric.get_provider_info:get_provider_info"
 
+[project.entry-points."airflow.plugins"]
+fabric_status_plugin2 = "airflow.providers.microsoft.fabric.plugins.fabric_status_plugin:FabricStatusPlugin"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

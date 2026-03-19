@@ -9,6 +9,7 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 
 from airflow.providers.microsoft.fabric.hooks.connection.http_client import HttpClient
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection_spn import MSFabricRestConnectionSPN
+from airflow.providers.microsoft.fabric.hooks.connection.rest_connection_token import MSFabricRestConnectionToken
 
 from wtforms import StringField, PasswordField
 from flask_appbuilder.fieldwidgets import BS3PasswordFieldWidget, BS3TextFieldWidget
@@ -17,6 +18,7 @@ from flask_babel import gettext
 
 AUTH_CLASSES = {
     "spn": MSFabricRestConnectionSPN,
+    "token": MSFabricRestConnectionToken,
     # Future: "pat": MSFabricRestConnectionPAT,
     # Future: "msi": MSFabricRestConnectionMSI,
 }
@@ -106,17 +108,16 @@ class MSFabricRestConnection(BaseHook):
             self.log.error("Connection '%s' has no extra configuration", conn_id)
             raise AirflowException(
                 f"Connection '{conn_id}' missing extra configuration. "
-                "Please configure tenantId, clientId, and clientSecret."
+                "Please configure the required parameters for the chosen auth type "
+                "(for example, for auth_type='spn' you typically need tenantId, clientId, and clientSecret). "
+                "Refer to the Microsoft Fabric provider documentation for details on each auth type's requirements."
             )
 
         available_params = list(self.conn.extra_dejson.keys())
         self.log.debug("Available connection parameters for '%s': %s", conn_id, available_params)
         
-        # Stick with spn for now due to lack of support for select fields in 2.10.5
-        # extras = self.conn.extra_dejson
-        # auth_type = extras.get("auth_type", "spn").lower()
-        auth_type = "spn"
-        
+        extras = self.conn.extra_dejson
+        auth_type = extras.get("auth_type", "spn").lower()
         self.log.debug("Using auth_type: %s for connection '%s'", auth_type, conn_id)
         
         auth_class = AUTH_CLASSES.get(auth_type)

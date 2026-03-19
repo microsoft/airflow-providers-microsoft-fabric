@@ -16,11 +16,12 @@ classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
-version = "0.0.9"
+version = "0.1.0"
 requires-python = ">=3.8"
 dependencies = [
-    "requests",
+    "azure-identity",
     "azure-storage-file-datalake",
+    "requests",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,9 @@ Homepage = "https://github.com/microsoft/apache-airflow-microsoft-fabric-plugin.
 
 [project.entry-points."apache_airflow_provider"]
 provider_info = "airflow.providers.microsoft.fabric.get_provider_info:get_provider_info"
+
+[project.entry-points."airflow.plugins"]
+fabric_status_plugin = "airflow.providers.microsoft.fabric.plugins.fabric_status_plugin:FabricStatusPlugin"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

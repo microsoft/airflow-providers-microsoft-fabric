@@ -56,6 +56,21 @@ with DAG(
         .to_json()
   )
 
+  # Notebook with High Concurrency Mode
+  runNotebook_hc = MSFabricRunJobOperator(
+    task_id="runNotebookTask_high_concurrency",
+    fabric_conn_id="fabric-integration",
+    workspace_id="cb9c7d63-3263-4996-9014-482eb8788007",
+    item_id="5ea6c21f-dcb3-4c63-9c37-fe433ac6894b",
+    job_type="RunNotebook",
+    timeout=60 * 10, #10 minutes
+    deferrable=True,
+    job_params= MSFabricNotebookJobParameters()
+        .set_parameter("sleep_seconds", 40, "int")
+        .set_high_concurrency_mode(True, "airflow-hc-session")
+        .to_json()
+  )
+
   runNotebook2 = MSFabricRunJobOperator(
     task_id="runNotebookTask2_sync",
     fabric_conn_id="fabric-integration",

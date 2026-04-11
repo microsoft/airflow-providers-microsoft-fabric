@@ -49,6 +49,7 @@ def get_provider_info():
             }
         ],
         "secrets-backends": [
+            "airflow.providers.microsoft.fabric.secrets.fabric_chained_secret_backend.FabricChainedSecretBackend",
             "airflow.providers.microsoft.fabric.secrets.fabric_secret_backend.FabricSecretBackend",
         ],
     }

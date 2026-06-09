@@ -117,6 +117,24 @@ class FabricSecretBackend(BaseSecretsBackend):
         """Not used - we override ``get_connection`` directly."""
         return None
 
+    def get_variable(self, key: str) -> Optional[str]:
+        """
+        This backend only resolves Fabric connections; it does not store
+        Airflow Variables. Return ``None`` so Airflow falls through to the
+        next secrets backend cleanly instead of logging a ``NotImplementedError``
+        traceback for every Variable lookup.
+        """
+        return None
+
+    def get_config(self, key: str) -> Optional[str]:
+        """
+        This backend does not provide Airflow configuration values. Return
+        ``None`` so Airflow falls through to the next secrets backend cleanly
+        instead of logging a ``NotImplementedError`` traceback for every
+        config lookup.
+        """
+        return None
+
     # ------------------------------------------------------------------
     # Cache helpers
     # ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, Any
+import json
 
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
 from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
@@ -11,7 +12,29 @@ class JobSchedulerConfig(RunItemConfig):
     # API configuration parameters
     api_host: str = "https://api.fabric.microsoft.com"
     api_scope: str = "https://api.fabric.microsoft.com/.default"
+    # Canonical JSON string. Airflow templates this field; with native template
+    # rendering (render_template_as_native_obj=True) a JSON object string is
+    # parsed back into a dict/list, so we normalize it in __post_init__.
     job_params: str = ""
+
+    def __post_init__(self) -> None:
+        self.job_params = self._normalize_job_params(self.job_params)
+
+    @staticmethod
+    def _normalize_job_params(value: Any) -> str:
+        """Coerce ``job_params`` into a canonical JSON string.
+
+        ``job_params`` is an Airflow template field. When native templating is
+        enabled (``render_template_as_native_obj=True``) a JSON object string is
+        evaluated back into a Python ``dict``/``list`` during rendering. This
+        guarantees the hook always sends a valid JSON string and never
+        double-encodes an already-serialized value.
+        """
+        if value is None or value == "":
+            return ""
+        if isinstance(value, str):
+            return value  # already a JSON string; don't re-encode
+        return json.dumps(value)  # dict/list/other -> JSON string
 
     def to_dict(self) -> Dict[str, Any]:
         # Base handles fabric_conn_id/timeout/poll and drops tenacity_retry
@@ -106,12 +129,14 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         url = self.generate_run_item_api_url(item)
         
-        # send data and content-type = json instead of json= to avoid double encoding
+        # job_params is normalized to a JSON string in JobSchedulerConfig, so send
+        # it as raw data with an explicit Content-Type instead of json= to avoid
+        # double-encoding the already-serialized payload.
         response = await connection.request(
             "POST",
             url,
             self.config.api_scope,
-            data=self.config.job_params,   # JSON string
+            data=self.config.job_params,  # canonical JSON string
             headers={"Content-Type": "application/json"}
         )
 

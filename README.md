@@ -14,12 +14,14 @@ pip install apache-airflow-providers-microsoft-fabric
 
 ## Authentication
 
-The provider supports the following authentication methods:
+The provider supports the following authentication methods. All authentication
+values are read from the connection's **Extra** field (`Connection.extra_dejson`).
 
-| Method | Description |
-|--------|-------------|
-| **Service Principal (SPN)** | Uses `client_id` and `client_secret` for automated pipelines. |
-| **User Token** | Uses a refresh token obtained via Microsoft OAuth. |
+
+| Method | `auth_type` | Description |
+|--------|-------------|-------------|
+| **Service Principal (SPN)** | `spn` (default) | Uses `clientId` and `clientSecret` to acquire tokens via the OAuth2 client credentials flow. |
+| **Pre-minted Access Token** | `token` | Uses an access token and its expiry supplied in the connection extras, typically by a secrets backend. |
 
 ### Connection setup
 
@@ -29,11 +31,58 @@ Create a connection in Airflow with the following settings:
 |-------|-------|
 | Connection Id | Your connection name |
 | Connection Type | `microsoft-fabric` |
-| Login | Client ID of your service principal or Entra ID app |
-| Password | Client secret (SPN) or refresh token (User Token) |
-| Extra | `{"tenantId": "<tenant-id>", "auth_type": "spn"}` |
+| Extra | See the JSON examples below for your chosen `auth_type` |
 
-> For user token auth, set `auth_type` to `token` and provide a refresh token as the password.
+> The `Login`, `Password`, `Host`, `Schema`, and `Port` fields are unused and
+> hidden. In the Airflow connection UI, dedicated **Tenant ID**, **Client ID**,
+> and **Client Secret** widgets are available for the SPN flow (their values are
+> stored in the connection extras). Token auth is typically supplied
+> programmatically by a [secrets backend](#secrets-backends) or via the Airflow
+> CLI / environment variable.
+
+#### Service Principal (SPN)
+
+Set the following in **Extra** (`auth_type` defaults to `spn` and may be omitted):
+
+```json
+{
+  "tenantId": "<tenant-id>",
+  "clientId": "<client-id>",
+  "clientSecret": "<client-secret>",
+  "auth_type": "spn"
+}
+```
+
+`tenantId` and `clientId` must be valid GUIDs. Create the connection with the
+Airflow CLI:
+
+```bash
+airflow connections add fabric_conn_id \
+  --conn-type microsoft-fabric \
+  --conn-extra '{"tenantId": "<tenant-id>", "clientId": "<client-id>", "clientSecret": "<client-secret>", "auth_type": "spn"}'
+```
+
+#### Pre-minted Access Token
+
+Set `auth_type` to `token` and supply a pre-minted access token along with its
+expiry (epoch seconds). This handler does **not** perform a refresh-token grant;
+when the token is near expiry it re-fetches the connection, expecting a
+[secrets backend](#secrets-backends) to provide a fresh token.
+
+```json
+{
+  "auth_type": "token",
+  "accessToken": "<access-token>",
+  "expiresAt": 1735689600,
+  "expiryBufferSeconds": 300
+}
+```
+
+| Extra key | Required | Description |
+|-----------|----------|-------------|
+| `accessToken` | Yes | Pre-minted bearer token. |
+| `expiresAt` | Yes | Token expiry as epoch seconds. |
+| `expiryBufferSeconds` | No | The secrets backend's cache buffer (seconds); the handler refreshes the token at half this value before expiry. Defaults to 60. |
 
 ## Operators
 

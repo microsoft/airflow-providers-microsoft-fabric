@@ -20,30 +20,64 @@ def fetch_task_logs(airflow_url, dag_id, dag_run_id, task_id, username, password
     :param password: Airflow password
     :return: Task logs as string or None if failed to fetch
     """
+    auth = HTTPBasicAuth(username, password)
+    base_url = airflow_url.rstrip('/')
     try:
         # Get task instance details first to get the try_number
-        task_instance_url = f"{airflow_url.rstrip('/')}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}"
-        task_resp = requests.get(task_instance_url, auth=HTTPBasicAuth(username, password))
-        
+        task_instance_url = f"{base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}"
+        task_resp = requests.get(task_instance_url, auth=auth)
+
         if not task_resp.ok:
             print(f"Warning: Could not fetch task instance details for '{task_id}': {task_resp.status_code}")
             return None
-        
+
         task_data = task_resp.json()
-        try_number = task_data.get('try_number', 1)
-        
-        # Fetch logs for the task
-        logs_url = f"{airflow_url.rstrip('/')}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}"
-        logs_resp = requests.get(logs_url, auth=HTTPBasicAuth(username, password))
-        
-        if logs_resp.ok:
-            logs_data = logs_resp.json()
-            # The logs are typically in the 'content' field
-            return logs_data.get('content', 'No log content available')
-        else:
-            print(f"Warning: Could not fetch logs for task '{task_id}': {logs_resp.status_code}")
-            return None
-            
+        # try_number reflects the latest attempt; fall back to 1 if missing/zero.
+        try_number = task_data.get('try_number') or 1
+
+        logs_url = f"{base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}"
+
+        # The Airflow logs endpoint returns plain text unless JSON is explicitly
+        # requested via the Accept header. Request JSON and page through the
+        # full log using the continuation token so the real error/traceback
+        # (usually at the end of the log) is captured.
+        collected = []
+        token = None
+        for _ in range(50):  # safety cap to avoid an unbounded loop
+            params = {"token": token} if token else None
+            logs_resp = requests.get(
+                logs_url,
+                auth=auth,
+                headers={"Accept": "application/json"},
+                params=params,
+            )
+
+            if not logs_resp.ok:
+                print(f"Warning: Could not fetch logs for task '{task_id}': {logs_resp.status_code}")
+                break
+
+            try:
+                logs_data = logs_resp.json()
+            except ValueError:
+                # Server returned plain text instead of JSON; use it as-is.
+                text = logs_resp.text
+                if text:
+                    collected.append(text)
+                break
+
+            content = logs_data.get('content')
+            if content:
+                collected.append(content)
+
+            token = logs_data.get('continuation_token')
+            if not token:
+                break
+
+        if collected:
+            return "\n".join(collected)
+
+        return None
+
     except Exception as e:
         print(f"Warning: Exception while fetching logs for task '{task_id}': {str(e)}")
         return None
@@ -181,22 +215,17 @@ def main():
         tasks = tasks_resp.json().get("task_instances", [])
         failed = [t['task_id'] for t in tasks if t['state'] and t['state'].lower() != "success"]
         if failed:
-            # Fetch logs for the first failed task
-            first_failed_task = failed[0]
-            print(f"Fetching logs for first failed task: '{first_failed_task}'")
-            
-            task_logs = fetch_task_logs(airflow_url, dag_id, dag_run_id, first_failed_task, username, password)
-            
-            error_message = f"Some tasks did not succeed: {failed}"
-            if task_logs:
-                error_message += f"\n\nLogs for failed task '{first_failed_task}':\n"
-                error_message += "=" * 80 + "\n"
-                error_message += task_logs
-                error_message += "\n" + "=" * 80
-            else:
-                error_message += f"\n\nCould not fetch logs for failed task '{first_failed_task}'"
-            
-            fail(error_message)
+            # Print logs for every failed task. The first failed task is not
+            # necessarily the root cause (e.g. tasks that only run in scheduled
+            # runs), so emit all of them to make diagnosis reliable.
+            for task_id in failed:
+                print("\n" + "=" * 80)
+                print(f"Logs for failed task '{task_id}':")
+                print("=" * 80)
+                task_logs = fetch_task_logs(airflow_url, dag_id, dag_run_id, task_id, username, password)
+                print(task_logs if task_logs else f"(could not fetch logs for '{task_id}')")
+
+            fail(f"Some tasks did not succeed: {failed}")
 
     # Safe guard in case API returns no tasks - should not happen
     if state != "success":

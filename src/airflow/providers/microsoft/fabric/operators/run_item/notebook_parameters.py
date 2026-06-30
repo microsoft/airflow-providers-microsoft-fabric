@@ -56,7 +56,8 @@ class NotebookConfiguration:
         "environment": {"id": "...", "name": "..."},
         "defaultLakehouse": {"name": "...", "id": "...", "workspaceId": "..."},
         "useStarterPool": false,
-        "useWorkspacePool": "..."
+        "useWorkspacePool": "...",
+        "highConcurrencyModeOptions": {"enabled": true, "sessionTag": "..."}
       }
     """
     conf: Dict[str, str] = field(default_factory=dict)
@@ -67,6 +68,8 @@ class NotebookConfiguration:
     default_lakehouse_workspace_id: Optional[str] = None
     use_starter_pool: Optional[bool] = None
     use_workspace_pool: Optional[str] = None
+    high_concurrency_enabled: Optional[bool] = None
+    high_concurrency_session_tag: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         cfg: Dict[str, Any] = {}
@@ -101,6 +104,14 @@ class NotebookConfiguration:
 
         if self.use_workspace_pool:
             cfg["useWorkspacePool"] = self.use_workspace_pool
+
+        if self.high_concurrency_enabled is not None or self.high_concurrency_session_tag is not None:
+            hc: Dict[str, Any] = {}
+            if self.high_concurrency_enabled is not None:
+                hc["enabled"] = self.high_concurrency_enabled
+            if self.high_concurrency_session_tag is not None:
+                hc["sessionTag"] = self.high_concurrency_session_tag
+            cfg["highConcurrencyModeOptions"] = hc
 
         return cfg
 
@@ -190,6 +201,32 @@ class MSFabricNotebookJobParameters:
         self._configuration.use_workspace_pool = pool_name
         return self
 
+    def set_high_concurrency_mode(
+        self,
+        enabled: bool,
+        session_tag: Optional[str] = None,
+    ) -> "MSFabricNotebookJobParameters":
+        """
+        Enable or disable high concurrency mode.
+
+        When enabled, Spark reuses existing sessions that share the same
+        *session_tag*, which minimises startup time.  If no matching session
+        exists, a new one is created with the given tag.
+
+        Serializes to::
+
+            "highConcurrencyModeOptions": {
+                "enabled": true,
+                "sessionTag": "my-tag"
+            }
+        """
+        if self._configuration is None:
+            self._configuration = NotebookConfiguration()
+        self._configuration.high_concurrency_enabled = enabled
+        if session_tag is not None:
+            self._configuration.high_concurrency_session_tag = session_tag
+        return self
+
     def to_dict(self) -> Dict[str, Any]:
         exec_data: Dict[str, Any] = {"parameters": self._parameters.to_dict()}
 
@@ -222,6 +259,7 @@ if __name__ == "__main__":
                  )
                  .set_use_starter_pool(False)
                  .set_use_workspace_pool("<workspace-pool-name>")
+                 .set_high_concurrency_mode(True, "my-session-tag")
                 )
 
     print(job_param.to_json())

@@ -11,7 +11,8 @@ def get_provider_info():
                     "airflow.providers.microsoft.fabric.hooks.run_item", # import the package so the alias in __init__.py is registered
                     "airflow.providers.microsoft.fabric.hooks.run_item.job",
                     "airflow.providers.microsoft.fabric.hooks.run_item.user_data_function",
-                    "airflow.providers.microsoft.fabric.hooks.run_item.semantic_model_refresh"],
+                    "airflow.providers.microsoft.fabric.hooks.run_item.semantic_model_refresh",
+                    "airflow.providers.microsoft.fabric.hooks.run_item.dataflow_gen2"],
             }
 
         ],
@@ -22,7 +23,8 @@ def get_provider_info():
                     "airflow.providers.microsoft.fabric.operators.run_item", # import the package so the alias in __init__.py is registered
                     "airflow.providers.microsoft.fabric.operators.run_item.job",
                     "airflow.providers.microsoft.fabric.operators.run_item.user_data_function",
-                    "airflow.providers.microsoft.fabric.operators.run_item.semantic_model_refresh"],
+                    "airflow.providers.microsoft.fabric.operators.run_item.semantic_model_refresh",
+                    "airflow.providers.microsoft.fabric.operators.run_item.dataflow_gen2"],
             }
         ],
         "extra-links": [
@@ -39,7 +41,8 @@ def get_provider_info():
                 "integration-name": "microsoft-fabric",
                 "python-modules": [
                     "airflow.providers.microsoft.fabric.triggers.run_item.job",
-                    "airflow.providers.microsoft.fabric.triggers.run_item.semantic_model_refresh"],
+                    "airflow.providers.microsoft.fabric.triggers.run_item.semantic_model_refresh",
+                    "airflow.providers.microsoft.fabric.triggers.run_item.dataflow_gen2"],
             }
         ],
         "plugins": [

@@ -4,6 +4,7 @@ from .base import MSFabricItemLink
 from .job import MSFabricRunJobOperator
 from .user_data_function import MSFabricRunUserDataFunctionOperator
 from .semantic_model_refresh import MSFabricRunSemanticModelRefreshOperator
+from .dataflow_gen2 import MSFabricRunDataflowGen2Operator
 
 # Parameter helper classes
 from .notebook_parameters import MSFabricNotebookJobParameters
@@ -20,6 +21,7 @@ __all__ = [
     "MSFabricRunJobOperator",
     "MSFabricRunUserDataFunctionOperator",
     "MSFabricRunSemanticModelRefreshOperator",
+    "MSFabricRunDataflowGen2Operator",
     # Parameter helper classes
     "MSFabricNotebookJobParameters",
     "MSFabricPipelineJobParameters",

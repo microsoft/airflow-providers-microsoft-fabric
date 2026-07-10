@@ -204,6 +204,96 @@ run_udf = MSFabricRunUserDataFunctionOperator(
 
 > **Backwards compatibility:** `MSFabricRunItemOperator` is available as an alias for `MSFabricRunJobOperator`.
 
+### MSFabricLivyBatchOperator
+
+Submits a Spark **batch** job to a Fabric Lakehouse via the [Livy REST API](https://livy.apache.org/docs/latest/rest-api.html) and monitors it to completion. Supports deferrable mode.
+
+| API | Livy (`.../lakehouses/{lakehouse_id}/livyApi/versions/{version}/batches`) |
+| --- | --- |
+| Required | `workspace_id`, `lakehouse_id`, and a `file` (absolute `abfss://` application path) |
+
+```python
+from airflow.providers.microsoft.fabric.operators.run_item import (
+    MSFabricLivyBatchOperator,
+    MSFabricLivyBatchParameters,
+)
+
+run_batch = MSFabricLivyBatchOperator(
+    task_id="run_livy_batch",
+    fabric_conn_id="fabric_conn_id",
+    workspace_id="<workspace_id>",
+    lakehouse_id="<lakehouse_id>",
+    file="abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/app.py",
+    py_files=["abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/lib.whl"],
+    num_executors=1,
+    executor_cores=8,
+    executor_memory="56g",
+    deferrable=True,
+)
+```
+
+You can also build the request body fluently and pass it as `job_params`
+(mirrors `MSFabricNotebookJobParameters`):
+
+```python
+params = (
+    MSFabricLivyBatchParameters()
+    .set_file("abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/app.py")
+    .add_py_file("abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/lib.whl")
+    .set_executors(num=1, cores=8, memory="56g")
+)
+run_batch = MSFabricLivyBatchOperator(
+    task_id="run_livy_batch",
+    fabric_conn_id="fabric_conn_id",
+    workspace_id="<workspace_id>",
+    lakehouse_id="<lakehouse_id>",
+    job_params=params.to_json(),
+)
+```
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `file` | str | — | Absolute `abfss://` path to the Spark application (required unless supplied via `job_params`). |
+| `py_files` / `jars` / `files` / `args` | list | `[]` | Additional Livy batch resources. |
+| `num_executors` / `executor_cores` / `executor_memory` / `driver_cores` / `driver_memory` | | — | Spark resource sizing. |
+| `conf` | dict | `{}` | Extra Spark configuration. |
+| `job_params` | str (JSON) | `""` | Prebuilt Livy body (overrides the individual fields). |
+| `timeout` | int | `3600` | Overall timeout in seconds. |
+| `check_interval` | int | `30` | Polling interval in seconds. |
+| `deferrable` | bool | `True` | Poll on the triggerer instead of the worker. |
+
+### MSFabricLivySessionOperator
+
+Runs PySpark **code** in an interactive Livy *session* ("Livy submission"): it
+creates the session, waits for `idle`, submits the code as a statement, and
+returns the statement's stdout (pushed to XCom). Useful when you need the in-job
+output (batch driver logs are not retained by Fabric after completion).
+
+```python
+from airflow.providers.microsoft.fabric.operators.run_item import MSFabricLivySessionOperator
+
+run_session = MSFabricLivySessionOperator(
+    task_id="run_livy_session",
+    fabric_conn_id="fabric_conn_id",
+    workspace_id="<workspace_id>",
+    lakehouse_id="<lakehouse_id>",
+    code="print('Hello from Fabric Livy'); print(spark.range(5).count())",
+    num_executors=1,
+    executor_cores=8,
+    executor_memory="56g",
+)
+```
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `code` | str | — | PySpark code to run as a statement (required). |
+| `num_executors` / `executor_cores` / `executor_memory` / `driver_cores` / `driver_memory` | | — | Spark resource sizing for the session. |
+| `conf` | dict | `{}` | Extra Spark configuration. |
+| `session_timeout` | int | `900` | Max seconds to wait for the session to become `idle`. |
+| `timeout` | int | `900` | Max seconds to wait for the statement to finish. |
+| `check_interval` | int | `10` | Polling interval in seconds. |
+| `delete_session_on_finish` | bool | `True` | Delete the session after the statement completes. |
+
 ## Secrets Backends
 
 ### Why Fabric needs a secrets backend

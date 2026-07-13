@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class MSFabricLivyBatchParameters:
     _file: Optional[str] = None
+    _class_name: Optional[str] = None
     _name: Optional[str] = None
     _py_files: List[str] = field(default_factory=list)
     _jars: List[str] = field(default_factory=list)
@@ -30,6 +31,10 @@ class MSFabricLivyBatchParameters:
 
     def set_file(self, file: str) -> "MSFabricLivyBatchParameters":
         self._file = file
+        return self
+
+    def set_class_name(self, class_name: str) -> "MSFabricLivyBatchParameters":
+        self._class_name = class_name
         return self
 
     def set_name(self, name: str) -> "MSFabricLivyBatchParameters":
@@ -80,6 +85,8 @@ class MSFabricLivyBatchParameters:
         if not self._file:
             raise ValueError("A Livy batch requires a 'file' (absolute abfss:// path). Call set_file().")
         body: Dict[str, Any] = {"file": self._file}
+        if self._class_name:
+            body["className"] = self._class_name
         if self._name:
             body["name"] = self._name
         if self._py_files:

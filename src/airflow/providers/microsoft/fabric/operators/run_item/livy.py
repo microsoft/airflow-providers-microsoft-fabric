@@ -49,6 +49,7 @@ class MSFabricLivyBatchOperator(BaseFabricRunItemOperator):
         "workspace_id",
         "lakehouse_id",
         "file",
+        "class_name",
         "py_files",
         "jars",
         "args",
@@ -70,6 +71,7 @@ class MSFabricLivyBatchOperator(BaseFabricRunItemOperator):
         workspace_id: str,
         lakehouse_id: str,
         file: Optional[str] = None,
+        class_name: Optional[str] = None,
         name: str = "airflow-fabric-livy-batch",
         py_files: Optional[list] = None,
         jars: Optional[list] = None,
@@ -95,6 +97,7 @@ class MSFabricLivyBatchOperator(BaseFabricRunItemOperator):
         self.workspace_id = workspace_id
         self.lakehouse_id = lakehouse_id
         self.file = file
+        self.class_name = class_name
         self.name = name
         self.job_type = "LivyBatch"
         self.py_files = py_files or []
@@ -153,6 +156,8 @@ class MSFabricLivyBatchOperator(BaseFabricRunItemOperator):
         body.setdefault("name", self.name)
         if self.file:
             body["file"] = self.file
+        if self.class_name and "className" not in body:
+            body["className"] = self.class_name  # JVM (Scala/Java) main class
         if not body.get("file"):
             raise MSFabricRunItemException("A Livy batch requires 'file' (absolute abfss:// app path).")
         return body

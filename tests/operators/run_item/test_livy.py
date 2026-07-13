@@ -64,6 +64,23 @@ class TestMSFabricLivyBatchOperator:
         assert body["file"] == "abfss://x/app.py"
         assert body["name"] == "jp"
 
+    def test_build_body_with_class_name(self):
+        op = MSFabricLivyBatchOperator(
+            task_id="t", file="abfss://x/app.jar", class_name="com.example.Main", **COMMON,
+        )
+        body = op.build_body()
+        assert body["file"] == "abfss://x/app.jar"
+        assert body["className"] == "com.example.Main"
+
+    def test_params_class_name(self):
+        body = (
+            MSFabricLivyBatchParameters()
+            .set_file("abfss://x/app.jar")
+            .set_class_name("com.example.Main")
+            .to_dict()
+        )
+        assert body["className"] == "com.example.Main"
+
     def test_build_body_requires_file(self):
         op = MSFabricLivyBatchOperator(task_id="t", num_executors=1, **COMMON)
         with pytest.raises(MSFabricRunItemException):

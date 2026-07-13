@@ -232,6 +232,21 @@ run_batch = MSFabricLivyBatchOperator(
 )
 ```
 
+To run a **Scala/JVM jar**, point `file` at the jar and set `class_name` to the
+entry-point class:
+
+```python
+run_jar = MSFabricLivyBatchOperator(
+    task_id="run_livy_jar",
+    fabric_conn_id="fabric_conn_id",
+    workspace_id="<workspace_id>",
+    lakehouse_id="<lakehouse_id>",
+    file="abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/app.jar",
+    class_name="com.example.MySparkJob",
+    args=["arg1", "arg2"],
+)
+```
+
 You can also build the request body fluently and pass it as `job_params`
 (mirrors `MSFabricNotebookJobParameters`):
 
@@ -254,6 +269,7 @@ run_batch = MSFabricLivyBatchOperator(
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `file` | str | — | Absolute `abfss://` path to the Spark application (required unless supplied via `job_params`). |
+| `class_name` | str | `None` | Entry-point class for a JVM/Scala jar (sets Livy `className`). |
 | `py_files` / `jars` / `files` / `args` | list | `[]` | Additional Livy batch resources. |
 | `num_executors` / `executor_cores` / `executor_memory` / `driver_cores` / `driver_memory` | | — | Spark resource sizing. |
 | `conf` | dict | `{}` | Extra Spark configuration. |
@@ -261,6 +277,30 @@ run_batch = MSFabricLivyBatchOperator(
 | `timeout` | int | `3600` | Overall timeout in seconds. |
 | `check_interval` | int | `30` | Polling interval in seconds. |
 | `deferrable` | bool | `True` | Poll on the triggerer instead of the worker. |
+
+> **Executor scaling on Fabric batches.** Fabric's Livy **batch** runtime ignores
+> the static executor count (`num_executors` / `spark.executor.instances`) and runs
+> on a **single executor** regardless of the requested value. To actually scale a
+> batch to _N_ executors, enable **dynamic allocation** with min = max = initial = _N_:
+>
+> ```python
+> run_batch = MSFabricLivyBatchOperator(
+>     task_id="run_livy_batch",
+>     fabric_conn_id="fabric_conn_id",
+>     workspace_id="<workspace_id>",
+>     lakehouse_id="<lakehouse_id>",
+>     file="abfss://<ws>@onelake.dfs.fabric.microsoft.com/<lh>/Files/livy/app.py",
+>     conf={
+>         "spark.dynamicAllocation.enabled": "true",
+>         "spark.dynamicAllocation.minExecutors": "4",
+>         "spark.dynamicAllocation.maxExecutors": "4",
+>         "spark.dynamicAllocation.initialExecutors": "4",
+>     },
+> )
+> ```
+>
+> `MSFabricLivySessionOperator` (below) honors the static `num_executors` value
+> directly — this caveat applies to **batches** only.
 
 ### MSFabricLivySessionOperator
 

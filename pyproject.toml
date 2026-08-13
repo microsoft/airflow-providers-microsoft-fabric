@@ -28,7 +28,7 @@ test = [
     "pytest",
     "pytest-mock",
     "pytest-asyncio",
-    "apache-airflow==2.10.5"
+    "apache-airflow==3.3.0"
 ]
 
 [project.urls]

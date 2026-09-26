@@ -1,6 +1,8 @@
+import json
 from datetime import datetime, timedelta
 from dataclasses import dataclass, fields
 from typing import Optional, Dict, Any
+from urllib.parse import urlparse
 
 from airflow.providers.microsoft.fabric.hooks.connection.rest_connection import MSFabricRestConnection
 from airflow.providers.microsoft.fabric.hooks.run_item.base import BaseFabricRunItemHook, MSFabricRunItemException
@@ -207,7 +209,11 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
 
         try:
             # Use api_host from config instead of hardcoded URL
-            url = f"{self.config.api_host}/v1/workspaces/{tracker.item.workspace_id}/items/{tracker.item.item_id}/jobs/instances/{tracker.run_id}/cancel"
+            item_path = f"workspaces/{tracker.item.workspace_id}/items/{tracker.item.item_id}"
+            notebook_path = f"workspaces/{tracker.item.workspace_id}/notebooks/{tracker.item.item_id}"
+            if urlparse(tracker.location_url).path.startswith(f"/v1/{notebook_path}/jobs/"):
+                item_path = notebook_path
+            url = f"{self.config.api_host}/v1/{item_path}/jobs/instances/{tracker.run_id}/cancel"
 
             # Use api_scope from config instead of hardcoded scope
             await connection.request("POST", url, self.config.api_scope)
@@ -267,6 +273,22 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
         """Updates this mapping should be reflected in hook generate_deep_link method."""
         """List all suported names for clarity"""
         normalized_type = self.normalize_job_type(item.item_type)
+        if normalized_type == "RunNotebook":
+            try:
+                payload = json.loads(self.config.job_params)
+            except (TypeError, ValueError):
+                payload = None
+            if isinstance(payload, dict):
+                execution_data = payload.get("executionData")
+                if isinstance(execution_data, dict) and execution_data.get("compute") == "Spark":
+                    compute_config = execution_data.get("computeConfiguration")
+                    if isinstance(compute_config, dict) and isinstance(
+                        compute_config.get("highConcurrencyModeOptions"), dict
+                    ) and compute_config["highConcurrencyModeOptions"].get("enabled") is True:
+                        return (
+                            f"{self.config.api_host}/v1/workspaces/{item.workspace_id}"
+                            f"/notebooks/{item.item_id}/jobs/execute/instances?beta=false"
+                        )
         default_url =  f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/Execute/instances"
         fallback_url = f"{self.config.api_host}/v1/workspaces/{item.workspace_id}/items/{item.item_id}/jobs/instances?jobType={normalized_type}"
 

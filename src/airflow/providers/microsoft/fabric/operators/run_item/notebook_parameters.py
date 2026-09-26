@@ -67,6 +67,8 @@ class NotebookConfiguration:
     default_lakehouse_workspace_id: Optional[str] = None
     use_starter_pool: Optional[bool] = None
     use_workspace_pool: Optional[str] = None
+    high_concurrency_enabled: Optional[bool] = None
+    high_concurrency_session_tag: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         cfg: Dict[str, Any] = {}
@@ -190,7 +192,39 @@ class MSFabricNotebookJobParameters:
         self._configuration.use_workspace_pool = pool_name
         return self
 
+    def set_high_concurrency_mode(
+        self, enabled: bool, session_tag: Optional[str] = None
+    ) -> "MSFabricNotebookJobParameters":
+        """Run the notebook in a shared Spark session with the given tag."""
+        if self._configuration is None:
+            self._configuration = NotebookConfiguration()
+        self._configuration.high_concurrency_enabled = enabled
+        self._configuration.high_concurrency_session_tag = session_tag
+        return self
+
     def to_dict(self) -> Dict[str, Any]:
+        if self._configuration and self._configuration.high_concurrency_enabled:
+            configuration = self._configuration.to_dict()
+            configuration["highConcurrencyModeOptions"] = {
+                "enabled": True,
+                **(
+                    {"sessionTag": self._configuration.high_concurrency_session_tag}
+                    if self._configuration.high_concurrency_session_tag is not None else {}
+                ),
+            }
+            return {
+                "parameters": [
+                    {"name": name, "value": param["value"], "type": {
+                        "string": "String", "int": "Integer", "float": "Float", "bool": "Boolean"
+                    }[param["type"]]}
+                    for name, param in self._parameters.to_dict().items()
+                ],
+                "executionData": {
+                    "compute": "Spark",
+                    "computeConfiguration": configuration,
+                },
+            }
+
         exec_data: Dict[str, Any] = {"parameters": self._parameters.to_dict()}
 
         if self._configuration:

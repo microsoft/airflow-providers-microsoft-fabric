@@ -211,7 +211,8 @@ class MSFabricRunJobHook(BaseFabricRunItemHook):
             # Use api_host from config instead of hardcoded URL
             item_path = f"workspaces/{tracker.item.workspace_id}/items/{tracker.item.item_id}"
             notebook_path = f"workspaces/{tracker.item.workspace_id}/notebooks/{tracker.item.item_id}"
-            if urlparse(tracker.location_url).path.startswith(f"/v1/{notebook_path}/jobs/"):
+            notebook_prefix = f"{urlparse(self.config.api_host).path.rstrip('/')}/v1/{notebook_path}/jobs/"
+            if urlparse(tracker.location_url).path.startswith(notebook_prefix):
                 item_path = notebook_path
             url = f"{self.config.api_host}/v1/{item_path}/jobs/instances/{tracker.run_id}/cancel"
 

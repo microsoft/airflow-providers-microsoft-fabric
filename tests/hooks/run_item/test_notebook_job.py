@@ -63,6 +63,13 @@ def test_high_concurrency_parameter_types_and_configuration():
     }
 
 
+def test_high_concurrency_rejects_unsupported_parameter_type():
+    builder = MSFabricNotebookJobParameters().set_parameter("start", "today", "date")
+    builder.set_high_concurrency_mode(True)
+    with pytest.raises(ValueError, match="Unsupported notebook parameter type 'date' for 'start'"):
+        builder.to_dict()
+
+
 @pytest.mark.asyncio
 async def test_high_concurrency_uses_notebook_background_job():
     params = MSFabricNotebookJobParameters().set_parameter("sleep_seconds", 40, "int")
@@ -95,6 +102,24 @@ async def test_high_concurrency_uses_notebook_background_job():
     connection.request.assert_awaited_with(
         "POST",
         "https://api.fabric.microsoft.com/v1/workspaces/ws/notebooks/nb/jobs/instances/job/cancel",
+        hook.config.api_scope,
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_notebook_with_api_host_path_prefix():
+    hook = make_hook("")
+    hook.config.api_host = "https://example.com/fabric"
+    connection = AsyncMock()
+    tracker = AsyncMock()
+    tracker.item.workspace_id = "ws"
+    tracker.item.item_id = "nb"
+    tracker.run_id = "job"
+    tracker.location_url = "https://example.com/fabric/v1/workspaces/ws/notebooks/nb/jobs/instances/job"
+
+    assert await hook.cancel_run(connection, tracker)
+    connection.request.assert_awaited_once_with(
+        "POST", "https://example.com/fabric/v1/workspaces/ws/notebooks/nb/jobs/instances/job/cancel",
         hook.config.api_scope,
     )
 

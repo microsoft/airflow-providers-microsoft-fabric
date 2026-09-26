@@ -110,8 +110,8 @@ class NotebookConfiguration:
 @dataclass
 class MSFabricNotebookJobParameters:
     """
-    Final payload builder for the Job Scheduler API (RunNotebook).
-    Produces exactly:
+    Payload builder for the Job Scheduler API (RunNotebook), or the Notebook
+    Background Jobs API when high concurrency is enabled. By default produces:
     {
       "executionData": {
         "parameters": { ... },
@@ -195,7 +195,11 @@ class MSFabricNotebookJobParameters:
     def set_high_concurrency_mode(
         self, enabled: bool, session_tag: Optional[str] = None
     ) -> "MSFabricNotebookJobParameters":
-        """Run the notebook in a shared Spark session with the given tag."""
+        """Enable Spark session sharing with an optional tag.
+
+        When enabled, the payload switches to the Notebook Background Jobs API
+        format. Omitting the tag removes any previously set session tag.
+        """
         if self._configuration is None:
             self._configuration = NotebookConfiguration()
         self._configuration.high_concurrency_enabled = enabled
@@ -212,13 +216,14 @@ class MSFabricNotebookJobParameters:
                     if self._configuration.high_concurrency_session_tag is not None else {}
                 ),
             }
+            types = {"string": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
+            parameters = []
+            for name, param in self._parameters.to_dict().items():
+                if param["type"] not in types:
+                    raise ValueError(f"Unsupported notebook parameter type {param['type']!r} for {name!r}")
+                parameters.append({"name": name, "value": param["value"], "type": types[param["type"]]})
             return {
-                "parameters": [
-                    {"name": name, "value": param["value"], "type": {
-                        "string": "String", "int": "Integer", "float": "Float", "bool": "Boolean"
-                    }[param["type"]]}
-                    for name, param in self._parameters.to_dict().items()
-                ],
+                "parameters": parameters,
                 "executionData": {
                     "compute": "Spark",
                     "computeConfiguration": configuration,

@@ -73,7 +73,7 @@ run_notebook = MSFabricRunJobOperator(
 
 | Fabric item | `job_type` values | API | Required permission |
 |-------------|-------------------|-----|---------------------|
-| Notebook | `RunNotebook`, `Notebook` | Fabric Job Scheduler | `Item.Execute.All` or `Notebook.Execute.All` |
+| Notebook | `RunNotebook`, `Notebook` | Fabric Job Scheduler (Notebook Background Jobs API when high concurrency is enabled) | `Item.Execute.All` or `Notebook.Execute.All` |
 | Data Pipeline | `RunPipeline`, `Pipeline` | Fabric Job Scheduler | `Item.Execute.All` or `DataPipeline.Execute.All` |
 | Spark Job Definition | `RunSparkJob`, `SparkJob` | Fabric Job Scheduler | `Item.Execute.All` or `SparkJobDefinition.Execute.All` |
 | DBT Job | `DataBuildToolJob`, `DBT` | Fabric Job Scheduler | `Item.Execute.All` |
@@ -114,6 +114,11 @@ run_notebook = MSFabricRunJobOperator(
     deferrable=True,
 )
 ```
+
+To share a Spark session, call `.set_high_concurrency_mode(True, "my-session-tag")`
+on the notebook parameters builder before `.to_json()`. This uses the Notebook
+Background Jobs API; without high concurrency, the existing Job Scheduler
+payload and endpoint are unchanged.
 
 **Pipeline parameters** — use `MSFabricPipelineJobParameters`:
 
